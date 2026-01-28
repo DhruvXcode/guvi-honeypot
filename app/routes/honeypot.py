@@ -4,7 +4,7 @@ Main API endpoint for scam detection and agent engagement
 Handles: Cumulative intel, proper callback timing, channel-aware behavior
 """
 
-from fastapi import APIRouter, Header, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, Header, HTTPException, Depends, BackgroundTasks, Request
 from ..models import HoneypotRequest, HoneypotResponse, ExtractedIntelligence, Message
 from ..services.scam_detector import ScamDetectorService
 from ..services.agent import AgentService
@@ -12,7 +12,7 @@ from ..services.intelligence import IntelligenceService
 from ..services.callback import CallbackService
 from ..config import settings
 import logging
-from typing import List
+from typing import List, Dict, Any, Optional
 
 router = APIRouter()
 
@@ -97,9 +97,9 @@ def should_send_callback(
     return False
 
 
-@router.post("/honeypot", response_model=HoneypotResponse)
+@router.post("/honeypot")
 async def honeypot_handler(
-    request: HoneypotRequest, 
+    raw_request: Request,
     background_tasks: BackgroundTasks,
     api_key: str = Depends(verify_api_key)
 ):
@@ -113,17 +113,41 @@ async def honeypot_handler(
     4. Send callback to GUVI only at conversation end
     """
     
-    current_msg = request.message.text
-    session_id = request.sessionId
-    history = request.conversationHistory or []
+    # Parse raw JSON for maximum flexibility
+    try:
+        body = await raw_request.json()
+        logger.info(f"Received request body: {body}")
+    except Exception as e:
+        logger.error(f"Failed to parse JSON: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid JSON body: {str(e)}")
     
-    # Get channel and language from metadata
-    channel = "WhatsApp"  # Default
-    language = "English"  # Default
+    # Flexible field extraction with fallbacks
+    session_id = body.get("sessionId") or body.get("session_id") or "unknown"
     
-    if request.metadata:
-        channel = request.metadata.channel or "WhatsApp"
-        language = request.metadata.language or "English"
+    # Extract message - handle both nested and flat formats
+    message_data = body.get("message", {})
+    if isinstance(message_data, dict):
+        current_msg = message_data.get("text", "")
+        timestamp = message_data.get("timestamp")
+    else:
+        current_msg = str(message_data)
+        timestamp = None
+    
+    # Extract history with flexible parsing
+    history_data = body.get("conversationHistory") or body.get("conversation_history") or []
+    history = []
+    for h in history_data:
+        if isinstance(h, dict):
+            history.append(Message(
+                sender=h.get("sender", "scammer"),
+                text=h.get("text", ""),
+                timestamp=h.get("timestamp")
+            ))
+    
+    # Extract metadata with fallbacks
+    metadata = body.get("metadata", {})
+    channel = metadata.get("channel", "WhatsApp") if isinstance(metadata, dict) else "WhatsApp"
+    language = metadata.get("language", "English") if isinstance(metadata, dict) else "English"
     
     logger.info(f"[{session_id}] Received message on {channel}: {current_msg[:50]}...")
     
