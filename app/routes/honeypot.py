@@ -167,80 +167,78 @@ async def honeypot_handler(
         
         # ============== STEP 2: CUMULATIVE INTEL EXTRACTION ==============
         # Always extract from full history + current message
-    cumulative_intel = extract_cumulative_intel(current_msg, history, intelligence_service)
-    
-    has_significant_intel = any([
-        cumulative_intel.bankAccounts,
-        cumulative_intel.upiIds,
-        cumulative_intel.phishingLinks,
-        cumulative_intel.phoneNumbers
-    ])
-    
-    logger.info(f"[{session_id}] Intel extracted: {cumulative_intel.model_dump()}")
-    
-    # ============== STEP 3: BUILD RESPONSE ==============
-    response = HoneypotResponse()
-    response.scamDetected = scam_analysis.is_scam
-    response.extractedIntelligence = cumulative_intel
-    
-    # Calculate metrics
-    total_messages = len(history) + 2  # History + current scammer msg + our reply
-    response.engagementMetrics.totalMessagesExchanged = total_messages
-    
-    # Calculate duration
-    try:
-        from dateutil import parser
-        end_time = parser.parse(request.message.timestamp)
-        start_time = end_time
-        if history:
-            start_time = parser.parse(history[0].timestamp)
+        cumulative_intel = extract_cumulative_intel(current_msg, history, intelligence_service)
         
-        duration = int((end_time - start_time).total_seconds())
-        response.engagementMetrics.engagementDurationSeconds = duration
-    except Exception as e:
-        logger.warning(f"Duration calc error: {e}")
-        response.engagementMetrics.engagementDurationSeconds = 0
-    
-    # ============== STEP 4: GENERATE AGENT RESPONSE ==============
-    agent_reply = await agent_service.generate_response(
-        current_message=current_msg,
-        history=history,
-        extracted_intel=cumulative_intel.model_dump(),
-        language=language,
-        is_scam=scam_analysis.is_scam,
-        channel=channel,
-        timestamp=timestamp  # For temporal awareness
-    )
-    
-    response.agentResponse = agent_reply
-    
-    # Set agent notes based on analysis
-    if scam_analysis.is_scam:
-        response.agentNotes = f"SCAM DETECTED ({scam_analysis.confidence:.0%} confidence). {scam_analysis.reasoning}"
-    else:
-        response.agentNotes = f"Non-scam message. {scam_analysis.reasoning}"
-    
-    logger.info(f"[{session_id}] Agent response: {agent_reply[:50]}...")
-    
-    # ============== STEP 5: CALLBACK (ONLY AT END) ==============
-    should_callback = should_send_callback(
-        is_scam=scam_analysis.is_scam,
-        total_messages=total_messages,
-        has_significant_intel=has_significant_intel,
-        current_message=current_msg
-    )
-    
-    if should_callback:
-        logger.info(f"[{session_id}] Triggering final callback to GUVI")
-        background_tasks.add_task(
-            callback_service.send_final_result,
-            session_id=session_id,
-            scam_detected=True,
-            total_messages=total_messages,
-            intel=cumulative_intel,
-            agent_notes=response.agentNotes
+        has_significant_intel = any([
+            cumulative_intel.bankAccounts,
+            cumulative_intel.upiIds,
+            cumulative_intel.phishingLinks,
+            cumulative_intel.phoneNumbers
+        ])
+        
+        logger.info(f"[{session_id}] Intel extracted: {cumulative_intel.model_dump()}")
+        
+        # ============== STEP 3: BUILD RESPONSE ==============
+        response = HoneypotResponse()
+        response.scamDetected = scam_analysis.is_scam
+        response.extractedIntelligence = cumulative_intel
+        
+        # Calculate metrics
+        total_messages = len(history) + 2  # History + current scammer msg + our reply
+        response.engagementMetrics.totalMessagesExchanged = total_messages
+        
+        # Calculate duration (safely)
+        try:
+            if timestamp and history and history[0].timestamp:
+                from dateutil import parser
+                end_time = parser.parse(timestamp)
+                start_time = parser.parse(history[0].timestamp)
+                duration = int((end_time - start_time).total_seconds())
+                response.engagementMetrics.engagementDurationSeconds = duration
+        except Exception as e:
+            logger.warning(f"Duration calc error: {e}")
+            response.engagementMetrics.engagementDurationSeconds = 0
+        
+        # ============== STEP 4: GENERATE AGENT RESPONSE ==============
+        agent_reply = await agent_service.generate_response(
+            current_message=current_msg,
+            history=history,
+            extracted_intel=cumulative_intel.model_dump(),
+            language=language,
+            is_scam=scam_analysis.is_scam,
+            channel=channel,
+            timestamp=timestamp  # For temporal awareness
         )
-    
+        
+        response.agentResponse = agent_reply
+        
+        # Set agent notes based on analysis
+        if scam_analysis.is_scam:
+            response.agentNotes = f"SCAM DETECTED ({scam_analysis.confidence:.0%} confidence). {scam_analysis.reasoning}"
+        else:
+            response.agentNotes = f"Non-scam message. {scam_analysis.reasoning}"
+        
+        logger.info(f"[{session_id}] Agent response: {agent_reply[:50]}...")
+        
+        # ============== STEP 5: CALLBACK (ONLY AT END) ==============
+        should_callback = should_send_callback(
+            is_scam=scam_analysis.is_scam,
+            total_messages=total_messages,
+            has_significant_intel=has_significant_intel,
+            current_message=current_msg
+        )
+        
+        if should_callback:
+            logger.info(f"[{session_id}] Triggering final callback to GUVI")
+            background_tasks.add_task(
+                callback_service.send_final_result,
+                session_id=session_id,
+                scam_detected=True,
+                total_messages=total_messages,
+                intel=cumulative_intel,
+                agent_notes=response.agentNotes
+            )
+        
         return response
     
     except Exception as e:
