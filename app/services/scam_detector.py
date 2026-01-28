@@ -1,106 +1,268 @@
+"""
+Scam Detection Service - GUVI Hackathon Compliant
+Handles: Scam vs Legitimate message classification with confidence scoring
+"""
 
-import google.generativeai as genai
-from ..config import settings
-from ..models import ScamAnalysis, Message
-from typing import List
 import json
+import re
+from groq import AsyncGroq
+from app.config import settings
+from app.models import ScamAnalysis, Message
+from typing import List, Tuple
 
 class ScamDetectorService:
-    """Service to detect scam intent using Gemini AI."""
+    """
+    Intelligent scam detection with:
+    - Domain whitelisting for legitimate services
+    - Automated message detection
+    - Confidence thresholding
+    - Context-aware analysis
+    """
 
     def __init__(self):
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel(settings.GEMINI_MODEL)
+        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        self.model_name = settings.GROQ_MODEL
         
-    async def analyze(self, message: str, history: List[Message]) -> ScamAnalysis:
-        """Analyze a message for scam intent."""
+        # Legitimate domains that reduce scam likelihood
+        self.legitimate_domains = {
+            # Banking
+            "sbi.co.in", "hdfcbank.com", "icicibank.com", "axisbank.com",
+            "kotak.com", "yesbank.in", "pnb.co.in", "bankofbaroda.in",
+            # Insurance
+            "hdfclife.com", "hli.app", "licindia.in", "iciciprulife.com",
+            "sbigeneral.in", "bajajallianz.com",
+            # Government
+            "gov.in", "uidai.gov.in", "incometax.gov.in",
+            # Telecom
+            "jio.com", "airtel.in", "vi.com",
+            # E-commerce
+            "amazon.in", "flipkart.com", "myntra.com",
+            # Payment
+            "paytm.com", "phonepe.com", "gpay.in"
+        }
         
-        # Prepare context from history (last 3 messages is usually enough for context)
+        # Patterns indicating automated/bulk messages (likely legitimate)
+        self.automated_patterns = [
+            r"policy\s*no[.:]?\s*\d+",  # Policy numbers
+            r"order\s*#?\s*\d+",  # Order numbers
+            r"otp\s*is\s*\d{4,6}",  # OTP messages (legit service sending OTP)
+            r"delivered\s*on\s*\d{1,2}[-/]\d{1,2}",  # Delivery notifications
+            r"your\s*bill\s*(of|for)\s*rs\.?\s*\d+",  # Bill notifications
+        ]
+        
+        # SCAM indicators - strong signals
+        self.scam_indicators = [
+            r"account\s*(will\s*be\s*)?(blocked|suspended|closed)\s*today",
+            r"verify\s*immediately",
+            r"click\s*now\s*to\s*avoid",
+            r"share\s*(your\s*)?(otp|pin|password)",
+            r"won\s*(a\s*)?(lottery|prize|reward)",
+            r"unauthorized\s*transaction",
+            r"kyc\s*(expir|updat|mandatory)",
+        ]
+        
+    def _check_url_legitimacy(self, text: str) -> Tuple[bool, List[str]]:
+        """Check if URLs in message are from legitimate sources."""
+        urls = re.findall(r"https?://([^\s/]+)", text.lower())
+        
+        legitimate_urls = []
+        suspicious_urls = []
+        
+        for url in urls:
+            is_legit = False
+            for domain in self.legitimate_domains:
+                if url.endswith(domain) or domain in url:
+                    is_legit = True
+                    legitimate_urls.append(url)
+                    break
+            if not is_legit:
+                suspicious_urls.append(url)
+        
+        # If ALL urls are legitimate, it's likely not a scam
+        if urls and not suspicious_urls:
+            return True, legitimate_urls
+        return False, suspicious_urls
+    
+    def _is_automated_message(self, text: str) -> bool:
+        """Detect if message is automated/bulk (likely legitimate service)."""
+        text_lower = text.lower()
+        
+        for pattern in self.automated_patterns:
+            if re.search(pattern, text_lower, re.IGNORECASE):
+                return True
+        return False
+    
+    def _has_strong_scam_indicators(self, text: str) -> Tuple[bool, List[str]]:
+        """Check for strong scam language patterns."""
+        text_lower = text.lower()
+        found_patterns = []
+        
+        for pattern in self.scam_indicators:
+            if re.search(pattern, text_lower, re.IGNORECASE):
+                found_patterns.append(pattern.replace("\\s*", " ").replace("\\s+", " "))
+        
+        return len(found_patterns) > 0, found_patterns
+
+    async def analyze(self, message: str, history: List[Message] = None) -> ScamAnalysis:
+        """
+        Analyze a message for scam intent with multi-layer detection.
+        
+        Layer 1: URL legitimacy check
+        Layer 2: Automated message detection
+        Layer 3: Strong scam indicator patterns
+        Layer 4: LLM-based contextual analysis
+        """
+        if history is None:
+            history = []
+        
+        # ============== LAYER 1: URL CHECK ==============
+        urls_legit, url_list = self._check_url_legitimacy(message)
+        if urls_legit and url_list:
+            return ScamAnalysis(
+                is_scam=False,
+                confidence=0.85,
+                detected_patterns=["legitimate_domain"],
+                reasoning=f"Message contains URLs from trusted domains: {', '.join(url_list[:3])}"
+            )
+        
+        # ============== LAYER 2: AUTOMATED MESSAGE CHECK ==============
+        if self._is_automated_message(message):
+            return ScamAnalysis(
+                is_scam=False,
+                confidence=0.75,
+                detected_patterns=["automated_notification"],
+                reasoning="Message appears to be an automated notification from a service (contains policy/order numbers, OTPs, or delivery info)"
+            )
+        
+        # ============== LAYER 3: STRONG SCAM INDICATORS ==============
+        has_scam_signals, scam_patterns = self._has_strong_scam_indicators(message)
+        if has_scam_signals:
+            return ScamAnalysis(
+                is_scam=True,
+                confidence=0.9,
+                detected_patterns=scam_patterns,
+                reasoning=f"Strong scam indicators detected: urgency + threat language"
+            )
+        
+        # ============== LAYER 4: LLM CONTEXTUAL ANALYSIS ==============
+        # Only call LLM if layers 1-3 are inconclusive
+        
+        # Build context from history (last 5 messages)
         context_str = ""
         if history:
-            context_str = "\nPrevious conversation:\n" + "\n".join(
-                [f"{msg.sender}: {msg.text}" for msg in history[-3:]]
+            context_str = "Previous messages:\n" + "\n".join([
+                f"- {msg.sender}: {msg.text}" for msg in history[-5:]
+            ])
+        
+        prompt = f"""You are an expert in detecting financial scams in India.
+Analyze this message and determine if it's a SCAM or LEGITIMATE.
+
+MESSAGE: "{message}"
+{context_str}
+
+CLASSIFICATION RULES:
+1. LEGITIMATE messages:
+   - Automated notifications (policy maturity, order delivery, OTP)
+   - No immediate threat or urgency
+   - Come from known services (banks, insurance, e-commerce)
+   - Ask you to visit branch or official website
+   
+2. SCAM messages:
+   - Create artificial urgency ("blocked TODAY", "verify NOW")
+   - Ask for sensitive info (OTP, PIN, password) directly
+   - Threaten negative consequences if you don't act
+   - Contain suspicious links to unknown domains
+   - Unsolicited offers (lottery, job, loan approval)
+
+EXAMPLES:
+- "Your HDFC policy No.04137874 is maturing on 27-04-2026. Submit documents at your nearest branch." -> LEGITIMATE (no urgency, official process)
+- "Your SBI account is blocked! Share OTP 456789 to unblock immediately." -> SCAM (urgency + OTP request)
+- "Hi, I am from customer support. Can you share your details?" -> SCAM (unsolicited contact asking for info)
+- "Your order #12345 has been delivered. Rate your experience." -> LEGITIMATE (notification, no ask)
+
+Respond in JSON:
+{{
+    "is_scam": boolean,
+    "confidence": float (0.0 to 1.0),
+    "reasoning": "brief explanation",
+    "detected_patterns": ["list", "of", "signals"]
+}}"""
+
+        try:
+            response = await self.client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": "You are a scam detection API. Output JSON only. Be conservative - only flag as scam if confidence > 0.6"},
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.model_name,
+                response_format={"type": "json_object"},
+                temperature=0.1  # Low temperature for consistent classification
             )
             
-        prompt = f"""
-        You are an AI expert in detecting financial scams and fraud.
-        Analyze the following incoming message for scam intent.
-        
-        Incoming Message: "{message}"
-        {context_str}
-        
-        Is this message likely a scam?
-        CRITICAL: If the message contains ANY of the following, answer "is_scam": true
-        - Threats to block/suspend account
-        - Demands to "verify immediately" or "complete KYC"
-        - Requests for UPI PIN, passwords, or OTPs
-        - Unsolicited lottery or job offers
-        - Suspicious links asking for login
-        
-        Respond in strict JSON format:
-        {{
-            "is_scam": boolean,
-            "confidence": float (0.0 to 1.0),
-            "reasoning": "short explanation",
-            "detected_patterns": ["list", "of", "scam", "keywords"]
-        }}
+            text_response = response.choices[0].message.content
+            result = json.loads(text_response)
+            
+            confidence = result.get("confidence", 0.0)
+            is_scam = result.get("is_scam", False)
+            
+            # Apply confidence threshold - only flag if confidence > 0.6
+            if is_scam and confidence < 0.6:
+                is_scam = False
+                result["reasoning"] = f"Low confidence ({confidence:.2f}) - treating as non-scam"
+            
+            return ScamAnalysis(
+                is_scam=is_scam,
+                confidence=confidence,
+                detected_patterns=result.get("detected_patterns", []),
+                reasoning=result.get("reasoning", "")
+            )
+            
+        except Exception as e:
+            print(f"Scam detection error: {e}")
+            # On error, default to non-scam (conservative approach)
+            return ScamAnalysis(
+                is_scam=False, 
+                confidence=0.0, 
+                reasoning=f"Analysis error - defaulting to non-scam: {str(e)}"
+            )
+
+    async def analyze_quick(self, message: str) -> ScamAnalysis:
         """
+        Quick analysis using only regex patterns (no LLM call).
+        Use for performance optimization when needed.
+        """
+        # Check scam indicators
+        has_scam, patterns = self._has_strong_scam_indicators(message)
+        if has_scam:
+            return ScamAnalysis(
+                is_scam=True,
+                confidence=0.85,
+                detected_patterns=patterns,
+                reasoning="Quick scan: scam patterns detected"
+            )
         
-        import asyncio
+        # Check legitimate indicators
+        urls_legit, _ = self._check_url_legitimacy(message)
+        if urls_legit:
+            return ScamAnalysis(
+                is_scam=False,
+                confidence=0.80,
+                detected_patterns=["legitimate_domain"],
+                reasoning="Quick scan: legitimate domain detected"
+            )
         
-        # Retry logic for robust API calls
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                # Safety settings to allow scam analysis
-                safety_settings = [
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-                ]
-                
-                response = await self.model.generate_content_async(
-                    prompt,
-                    generation_config={"response_mime_type": "application/json"},
-                    safety_settings=safety_settings
-                )
-                
-                # Check if we have a valid part
-                if not response.parts:
-                    print(f"Gemini Empty Response (Attempt {attempt+1}/{max_retries}). Finish Reason: {response.candidates[0].finish_reason if response.candidates else 'Unknown'}")
-                    # Fallback to text parsing if parts are weird but text exists in candidates
-                    if response.candidates and response.candidates[0].content.parts:
-                         text_response = response.candidates[0].content.parts[0].text
-                    else:
-                         if attempt == max_retries - 1:
-                             raise ValueError("Empty response from Gemini after retries")
-                         await asyncio.sleep(1 * (attempt + 1)) # Backoff
-                         continue
-                else:
-                    text_response = response.text
-
-                # Cleanup JSON string if model adds markdown blocks
-                text_response = text_response.replace("```json", "").replace("```", "").strip()
-                result = json.loads(text_response)
-                
-                return ScamAnalysis(
-                    is_scam=result.get("is_scam", False),
-                    confidence=result.get("confidence", 0.0),
-                    detected_patterns=result.get("detected_patterns", []),
-                    reasoning=result.get("reasoning", "")
-                )
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    print(f"Scam detection error: {e}")
-                    return ScamAnalysis(is_scam=False, confidence=0.0, reasoning=f"Error: {str(e)}")
-                await asyncio.sleep(1 * (attempt + 1))
-
-    async def analyze_dummy(self, is_scam: bool = True) -> ScamAnalysis:
-        """Fast return for established conversations."""
+        if self._is_automated_message(message):
+            return ScamAnalysis(
+                is_scam=False,
+                confidence=0.75,
+                detected_patterns=["automated"],
+                reasoning="Quick scan: automated notification pattern"
+            )
+        
+        # Inconclusive
         return ScamAnalysis(
-            is_scam=is_scam,
-            confidence=1.0,
-            detected_patterns=["established_context"],
-            reasoning="Conversation depth implies established context."
+            is_scam=False,
+            confidence=0.5,
+            detected_patterns=["inconclusive"],
+            reasoning="Quick scan: no strong signals either way"
         )
