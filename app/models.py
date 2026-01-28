@@ -4,18 +4,22 @@ from datetime import datetime
 
 
 # ============================================================================
-# Request Models (What GUVI sends us)
+# Request Models (What GUVI sends us) - Extra flexible for compatibility
 # ============================================================================
 
 class Message(BaseModel):
     """Single message in the conversation."""
-    sender: str = Field(..., description="Either 'scammer' or 'user'")
+    model_config = {"extra": "allow"}  # Accept any extra fields GUVI sends
+    
+    sender: str = Field(default="scammer", description="Either 'scammer' or 'user'")
     text: str = Field(..., description="Message content")
     timestamp: Optional[str] = Field(default=None, description="ISO-8601 timestamp (optional)")
 
 
 class Metadata(BaseModel):
     """Optional metadata about the conversation."""
+    model_config = {"extra": "allow"}  # Accept any extra fields
+    
     channel: Optional[str] = Field(default="SMS", description="SMS/WhatsApp/Email/Chat")
     language: Optional[str] = Field(default="English", description="Language used")
     locale: Optional[str] = Field(default="IN", description="Country or region")
@@ -23,9 +27,11 @@ class Metadata(BaseModel):
 
 class HoneypotRequest(BaseModel):
     """Incoming request from GUVI's Mock Scammer API."""
+    model_config = {"extra": "allow"}  # Accept any extra fields
+    
     sessionId: str = Field(..., description="Unique session identifier")
     message: Message = Field(..., description="Current incoming message")
-    conversationHistory: List[Message] = Field(
+    conversationHistory: Optional[List[Message]] = Field(
         default_factory=list, 
         description="Previous messages in the conversation"
     )
