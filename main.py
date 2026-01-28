@@ -19,8 +19,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register Routes
-app.include_router(honeypot.router, prefix="/api", tags=["Honeypot"])
+# Register Routes - endpoint at /honeypot (no prefix)
+app.include_router(honeypot.router, tags=["Honeypot"])
 
 @app.get("/health")
 async def health_check():
