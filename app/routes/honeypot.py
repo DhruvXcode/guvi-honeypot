@@ -252,7 +252,7 @@ async def honeypot_handler(
         )
 
 
-@router.get("/health")
+@router.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
     """Health check endpoint for monitoring."""
     return {"status": "healthy", "service": "honeypot"}
