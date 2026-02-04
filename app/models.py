@@ -60,11 +60,8 @@ class EngagementMetrics(BaseModel):
 class HoneypotResponse(BaseModel):
     """Response sent back to GUVI after processing a message."""
     status: str = Field(default="success")
-    scamDetected: bool = Field(default=False)
-    agentResponse: str = Field(default="", description="The AI agent's reply to the scammer")
-    engagementMetrics: EngagementMetrics = Field(default_factory=EngagementMetrics)
-    extractedIntelligence: ExtractedIntelligence = Field(default_factory=ExtractedIntelligence)
-    agentNotes: str = Field(default="", description="Agent's analysis notes")
+    reply: str = Field(default="", description="The AI agent's reply to the scammer")
+
 
 
 # ============================================================================
