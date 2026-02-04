@@ -118,9 +118,7 @@ async def honeypot_handler(
             # Return a default response instead of erroring
             return HoneypotResponse(
                 status="success",
-                scamDetected=False,
-                agentResponse="Hello! How may I help you?",
-                agentNotes="Request parsing failed, returning default response"
+                reply="Hello! How may I help you?"
             )
         
         # Flexible field extraction with fallbacks
