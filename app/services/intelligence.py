@@ -26,6 +26,9 @@ class IntelligenceService:
         self.bank_account_patterns = [
             r"(?i)(?:a/c|acct|account|acc)[.\s:-]*(?:no|number)?[.\s:-]*(\d{9,18})",
             r"(?i)(?:account|a/c)\s*(\d{9,18})",
+            # Standalone 11-16 digit numbers (common account/card number formats)
+            # Excluding 10-digit phone numbers and 13-digit timestamps
+            r"\b(\d{11,16})\b",
         ]
         
         # ============== UPI PATTERNS ==============

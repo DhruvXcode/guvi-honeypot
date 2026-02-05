@@ -349,42 +349,99 @@ Response:"""
             reply = self._enforce_style(result)
             return reply
         
-        # Strategic fallback - proactively extract intel
-        # Pick from diverse intel-extracting responses
+        # Strategic fallback - pick based on what's MISSING (not random!)
+        # This ensures we're always extracting NEW intel
+        missing = []
+        if not extracted_intel.get("phoneNumbers"):
+            missing.append("phone")
+        if not extracted_intel.get("upiIds"):
+            missing.append("upi")
+        if not extracted_intel.get("bankAccounts"):
+            missing.append("bank")
+        if not extracted_intel.get("phishingLinks"):
+            missing.append("link")
+        
         import random
-        fallback_responses = [
-            "beta what is your phone number.. i want to call and understand better..",
-            "beta can you share your upi id.. i will try to send directly..",
-            "beta what is your account number.. i will get my grandson to help..",
-            "beta please share the link again.. my phone is not showing properly..",
-            "beta i am confused.. what number should i call you on..",
-            "beta can you tell me where to send money.. give me details..",
+        
+        # Fallback responses organized by what intel we need
+        fallback_map = {
+            "phone": [
+                "beta can you call me.. i will understand better on phone.. what is your number..",
+                "this typing is confusing beta.. please call me.. tell me your number..",
+                "my grandson is not here to help type.. can you call? what is phone number..",
+            ],
+            "upi": [
+                "beta tell me your upi id.. i use phone pe only..",
+                "which upi should i send to beta.. gpay or phone pe..",
+                "my grandson saying give upi id.. what is yours beta..",
+            ],
+            "bank": [
+                "beta what is account number.. i will transfer from sbi..",
+                "tell me bank account and ifsc beta.. i will send today..",
+                "which account to send money beta.. give details..",
+            ],
+            "link": [
+                "is there any website link beta.. i will open on grandson's phone..",
+                "can you send link where i can do all this.. grandson will help..",
+                "which website beta.. send me the link i will try..",
+            ]
+        }
+        
+        # If we have missing intel, ask for the FIRST missing type
+        if missing:
+            target_type = missing[0]  # Prioritize: phone > upi > bank > link
+            return random.choice(fallback_map[target_type])
+        
+        # If we have everything, just keep engaging with generic confusion
+        generic_fallbacks = [
+            "beta i am not understanding.. please explain again slowly..",
+            "wait one minute beta.. let me think what you are saying..",
+            "beta my head is spinning.. can you repeat that..",
         ]
-        return random.choice(fallback_responses)
+        return random.choice(generic_fallbacks)
     
     def _analyze_intel_gaps(self, intel: dict) -> str:
-        """Analyze what intel we still need to extract."""
+        """Analyze what intel we still need to extract with PRIORITY guidance."""
         gaps = []
+        missing_priorities = []
         
-        if not intel.get("bankAccounts"):
-            gaps.append("❌ No bank account numbers extracted yet")
+        # Check what we have vs what we need
+        has_bank = bool(intel.get("bankAccounts"))
+        has_upi = bool(intel.get("upiIds"))
+        has_phone = bool(intel.get("phoneNumbers"))
+        has_link = bool(intel.get("phishingLinks"))
+        
+        if has_phone:
+            gaps.append(f"✅ Phone numbers: {intel['phoneNumbers']} (GOT IT - don't ask again!)")
         else:
-            gaps.append(f"✅ Bank accounts: {intel['bankAccounts']}")
+            gaps.append("❌ No phone numbers yet")
+            missing_priorities.append("PHONE")
             
-        if not intel.get("upiIds"):
-            gaps.append("❌ No UPI IDs extracted yet")
+        if has_upi:
+            gaps.append(f"✅ UPI IDs: {intel['upiIds']} (GOT IT - don't ask again!)")
         else:
-            gaps.append(f"✅ UPI IDs: {intel['upiIds']}")
+            gaps.append("❌ No UPI IDs yet")
+            missing_priorities.append("UPI")
             
-        if not intel.get("phoneNumbers"):
-            gaps.append("❌ No phone numbers extracted yet")
+        if has_bank:
+            gaps.append(f"✅ Bank accounts: {intel['bankAccounts']} (GOT IT - don't ask again!)")
         else:
-            gaps.append(f"✅ Phone numbers: {intel['phoneNumbers']}")
+            gaps.append("❌ No bank account numbers yet")
+            missing_priorities.append("BANK")
             
-        if not intel.get("phishingLinks"):
-            gaps.append("❌ No phishing links captured yet")
+        if has_link:
+            gaps.append(f"✅ Links captured: {intel['phishingLinks']} (GOT IT - don't ask again!)")
         else:
-            gaps.append(f"✅ Links captured: {intel['phishingLinks']}")
+            gaps.append("❌ No phishing links yet")
+            missing_priorities.append("LINK")
+        
+        # Add clear priority guidance
+        if missing_priorities:
+            priority = missing_priorities[0]  # First missing = highest priority
+            gaps.append(f"\n🎯 PRIORITY: Focus on extracting {priority} now!")
+            gaps.append(f"⚠️ DON'T ask for intel marked ✅ - you ALREADY HAVE it!")
+        else:
+            gaps.append(f"\n🎯 ALL INTEL COLLECTED! Just keep scammer engaged.")
         
         return "\n".join(gaps)
     
