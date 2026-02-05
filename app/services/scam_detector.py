@@ -24,8 +24,8 @@ class ScamDetectorService:
     """
 
     def __init__(self):
-        # Primary: Groq
-        self.groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        # Primary: Groq - DISABLE RETRIES to fail fast and switch to Cerebras
+        self.groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY, max_retries=0)
         self.groq_model = settings.GROQ_MODEL
         
         # Fallback: Cerebras (same Llama 3.3 70B model)
