@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Union, Any
 from datetime import datetime
 
 
@@ -13,7 +13,7 @@ class Message(BaseModel):
     
     sender: str = Field(default="scammer", description="Either 'scammer' or 'user'")
     text: str = Field(..., description="Message content")
-    timestamp: Optional[str] = Field(default=None, description="ISO-8601 timestamp (optional)")
+    timestamp: Optional[Any] = Field(default=None, description="Timestamp - can be string or int (epoch ms)")
 
 
 class Metadata(BaseModel):
