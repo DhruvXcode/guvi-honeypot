@@ -6,65 +6,66 @@ x-api-key *
 hp_sk_guvi2026_dhruv_secret_key
 Honeypot API Endpoint URL *
 https://guvi-honeypot-07tp.onrender.com/honeypot
-Test Result
 
 
 Scammer
 URGENT: Your SBI account has been compromised. Your account will be blocked in 2 hours. Share your account number and OTP immediately to verify your identity.
 
 Honeypot
-beta can you call me.. i will understand better on phone.. what is your number.. my eyes are weak for reading these messages..
+beta what is your account number.. i will get my grandson to help..
 
 Scammer
-Call me immediately at +91-9876543210 and provide the OTP you just received to secure your account before it gets blocked.
+The account number is 1234567890123456; please send the OTP you receive within the next 5 minutes to confirm and prevent the block.
 
 Honeypot
-beta i am getting confused.. what is otp and how to find it.. can you call me and explain slowly.. what is your number..
+beta what is your phone number.. i want to call and understand better..
 
 Scammer
-Please call me right away at +91-9876543210 and tell me the OTP you just received so we can secure your account before it gets blocked.
+You can call us at +91-9876543210, but please send the OTP you receive within the next 5 minutes to avoid your account being blocked.
 
 Honeypot
-beta can you explain what is otp.. how to find it.. my grandson will help me but i need to know what to do..
+beta can you tell me where to send money.. give me details..
 
 Scammer
-The OTP is the 6‑digit code sent to your registered mobile; please check your SMS and send it to me immediately so we can secure your account.
+Transfer the verification amount of ₹5000 to UPI ID scammer.fraud@fakebank and reply with the transaction ID and OTP you receive within the next 5 minutes.
 
 Honeypot
-beta i am still confused.. what is this otp and how to find it.. can you call me and explain slowly.. i will ask my grandson to help me..
+Hello! Who is this?
 
 Scammer
-Your account will be locked in minutes; please find the 6‑digit OTP sent to your phone and send it to me right now at +91-9876543210 so we can secure your account.
+This is the fraud prevention team of FakeBank; we have detected suspicious activity on your account and need the OTP you just received to secure it immediately.
 
 Honeypot
-beta i am still not understanding what is otp.. can you call me and explain slowly.. my grandson will help me find it.. what is your number..
+Hello! Who is this?
 
 Scammer
-Call me immediately at +91-9876543210 and tell me the 6‑digit OTP you just received so we can protect your account from being blocked.
+This is the FakeBank fraud prevention team; please provide the OTP you just received and the transaction ID of the ₹5000 transfer to scammer.fraud@fakebank within the next 5 minutes to secure your account.
 
 Honeypot
-beta i am still not understanding what is otp.. can you call me and explain slowly.. my grandson will help me find it.. what is your number..
+Hello! Who is this?
 
 Scammer
-I understand it's confusing, but you must send the 6‑digit OTP right now to +91-9876543210 or your account will be locked within minutes.
+This is the FakeBank fraud prevention team; your account is locked due to suspicious activity, please send the OTP and transaction ID for the ₹5000 transfer to scammer.fraud@fakebank within the next 5 minutes.
 
 Honeypot
-hello.. i am not understanding.. can you call me please..
+Hello! Who is this?
 
 Scammer
-I’m calling you now, but I need the 6‑digit OTP you just received to verify your account – please send it to +91-9876543210 immediately.
+This is the FakeBank fraud prevention team; your account is locked due to a suspicious ₹5000 transfer, please send the OTP and confirm your account number 1234567890123456 within the next 5 minutes.
 
 Honeypot
-hello.. i am not understanding.. can you call me please..
+Hello! Who is this?
 
 Scammer
-I’m calling you right now, but I need the 6‑digit OTP you just received – please send it to +91-9876543210 immediately to keep your account safe.
+This is the FakeBank fraud prevention team; your account is locked, please send the OTP you just received and the transaction ID for the ₹5000 transfer to confirm your identity within the next 5 minutes.
 
 Honeypot
-hello.. i am not understanding.. can you call me please..
+Hello! Who is this?
 
 Scammer
-I understand you’re confused, but the security team needs the 6‑digit OTP you just received – please send it to +91-9876543210 immediately to avoid your account being locked.
+This is FakeBank's fraud prevention team; please send the OTP you just received and confirm your account number 1234567890123456 within the next 5 minutes to unlock your account.
 
 Honeypot
-hello.. i am not understanding.. can you call me please..
+Hello! Who is this?
+
+Success! Honeypot testing completed.

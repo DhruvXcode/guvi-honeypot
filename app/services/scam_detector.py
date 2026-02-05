@@ -5,10 +5,14 @@ Handles: Scam vs Legitimate message classification with confidence scoring
 
 import json
 import re
+import logging
 from groq import AsyncGroq
+from openai import AsyncOpenAI
 from app.config import settings
 from app.models import ScamAnalysis, Message
 from typing import List, Tuple
+
+logger = logging.getLogger(__name__)
 
 class ScamDetectorService:
     """
@@ -20,8 +24,20 @@ class ScamDetectorService:
     """
 
     def __init__(self):
-        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-        self.model_name = settings.GROQ_MODEL
+        # Primary: Groq
+        self.groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        self.groq_model = settings.GROQ_MODEL
+        
+        # Fallback: Cerebras (same Llama 3.3 70B model)
+        self.cerebras_client = None
+        self.cerebras_model = "llama-3.3-70b"  # Production model, not reasoning model
+        if settings.CEREBRAS_API_KEY:
+            self.cerebras_client = AsyncOpenAI(
+                api_key=settings.CEREBRAS_API_KEY,
+                base_url=settings.CEREBRAS_BASE_URL
+            )
+        
+        self.use_cerebras = False
         
         # Legitimate domains that reduce scam likelihood
         self.legitimate_domains = {
@@ -188,43 +204,87 @@ Respond in JSON:
     "detected_patterns": ["list", "of", "signals"]
 }}"""
 
-        try:
-            response = await self.client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": "You are a scam detection API. Output JSON only. Be conservative - only flag as scam if confidence > 0.6"},
-                    {"role": "user", "content": prompt}
-                ],
-                model=self.model_name,
-                response_format={"type": "json_object"},
-                temperature=0.1  # Low temperature for consistent classification
-            )
-            
-            text_response = response.choices[0].message.content
-            result = json.loads(text_response)
-            
-            confidence = result.get("confidence", 0.0)
-            is_scam = result.get("is_scam", False)
-            
-            # Apply confidence threshold - only flag if confidence > 0.6
-            if is_scam and confidence < 0.6:
-                is_scam = False
-                result["reasoning"] = f"Low confidence ({confidence:.2f}) - treating as non-scam"
-            
-            return ScamAnalysis(
-                is_scam=is_scam,
-                confidence=confidence,
-                detected_patterns=result.get("detected_patterns", []),
-                reasoning=result.get("reasoning", "")
-            )
-            
-        except Exception as e:
-            print(f"Scam detection error: {e}")
-            # On error, default to non-scam (conservative approach)
-            return ScamAnalysis(
-                is_scam=False, 
-                confidence=0.0, 
-                reasoning=f"Analysis error - defaulting to non-scam: {str(e)}"
-            )
+        # Try to get LLM classification with fallback
+        text_response = await self._call_llm_for_detection(prompt)
+        
+        if text_response:
+            try:
+                result = json.loads(text_response)
+                confidence = result.get("confidence", 0.0)
+                is_scam = result.get("is_scam", False)
+                
+                # Apply confidence threshold - only flag if confidence > 0.6
+                if is_scam and confidence < 0.6:
+                    is_scam = False
+                    result["reasoning"] = f"Low confidence ({confidence:.2f}) - treating as non-scam"
+                
+                return ScamAnalysis(
+                    is_scam=is_scam,
+                    confidence=confidence,
+                    detected_patterns=result.get("detected_patterns", []),
+                    reasoning=result.get("reasoning", "")
+                )
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON parse error: {e}")
+        
+        # CRITICAL FIX: On LLM failure, DEFAULT TO SCAM (safer for honeypot)
+        # Rationale: In a honeypot, most messages ARE scams. 
+        # False positive (engaging with legit person) is better than false negative (not engaging with scammer)
+        logger.warning("LLM failed - defaulting to is_scam=True for safety")
+        return ScamAnalysis(
+            is_scam=True, 
+            confidence=0.70, 
+            detected_patterns=["llm_fallback"],
+            reasoning="LLM rate limited - defaulting to scam assumption for honeypot safety"
+        )
+    
+    async def _call_llm_for_detection(self, prompt: str) -> str:
+        """
+        Call LLM with Groq primary and Cerebras fallback for scam detection.
+        Returns the response text or None if both fail.
+        """
+        messages = [
+            {"role": "system", "content": "You are a scam detection API. Output JSON only. Be conservative - only flag as scam if confidence > 0.6"},
+            {"role": "user", "content": prompt}
+        ]
+        
+        # Try Groq first
+        if not self.use_cerebras:
+            try:
+                response = await self.groq_client.chat.completions.create(
+                    messages=messages,
+                    model=self.groq_model,
+                    response_format={"type": "json_object"},
+                    temperature=0.1
+                )
+                content = response.choices[0].message.content
+                if content:
+                    return content
+            except Exception as e:
+                error_str = str(e).lower()
+                if "rate_limit" in error_str or "429" in error_str:
+                    logger.warning(f"Groq rate limited for scam detection: {e}")
+                    self.use_cerebras = True
+                else:
+                    logger.error(f"Groq error: {e}")
+        
+        # Fallback to Cerebras
+        if self.cerebras_client:
+            try:
+                logger.info("Using Cerebras for scam detection...")
+                response = await self.cerebras_client.chat.completions.create(
+                    messages=messages,
+                    model=self.cerebras_model,
+                    temperature=0.1,
+                    max_tokens=500
+                )
+                content = response.choices[0].message.content
+                if content:
+                    return content
+            except Exception as e:
+                logger.error(f"Cerebras scam detection failed: {e}")
+        
+        return None
 
     async def analyze_quick(self, message: str) -> ScamAnalysis:
         """

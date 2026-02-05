@@ -87,7 +87,9 @@ class AgentService:
                     temperature=temperature,
                     max_tokens=max_tokens
                 )
-                return response.choices[0].message.content.strip()
+                content = response.choices[0].message.content
+                if content:
+                    return content.strip()
             except Exception as e:
                 error_str = str(e).lower()
                 if "rate_limit" in error_str or "429" in error_str or "too many requests" in error_str:
@@ -97,17 +99,21 @@ class AgentService:
                     logger.error(f"Groq error: {e}")
                     # For non-rate-limit errors, still try Cerebras
         
-        # Fallback to Cerebras
+        # Fallback to Cerebras (using llama-3.3-70b production model)
         if self.cerebras_client:
             try:
-                logger.info("Using Cerebras fallback...")
+                logger.info("Using Cerebras fallback (llama-3.3-70b)...")
                 response = await self.cerebras_client.chat.completions.create(
                     messages=messages,
-                    model=self.cerebras_model,
+                    model="llama-3.3-70b",  # Explicitly use production model, not settings
                     temperature=temperature,
                     max_tokens=max_tokens
                 )
-                return response.choices[0].message.content.strip()
+                content = response.choices[0].message.content
+                if content:
+                    return content.strip()
+                else:
+                    logger.warning("Cerebras returned None content")
             except Exception as e:
                 logger.error(f"Cerebras also failed: {e}")
         
