@@ -15,55 +15,83 @@ Honeypot
 which account beta.. i have sbi and pnb both.. why is blocking happening..
 
 Scammer
-Your SBI account is the one flagged; we need the full 16‑digit account number and the OTP you just received to secure it right now.
+It's your SBI account; please send the OTP and confirm your account number 1234567890123456 immediately to avoid the block.
 
 Honeypot
-Hello! How may I help you today?
+which otp beta.. i have so many messages on phone pe.. how to find correct one..
 
 Scammer
-To stop the block, please send your 16‑digit SBI account number and the OTP you just received on your phone right away.
+The OTP is the 6‑digit code from the latest SBI SMS – reply with that code and confirm your account number 1234567890123456 right now to prevent the block.
 
 Honeypot
-Hello! How may I help you today?
+which otp beta.. you are saying latest sbi sms.. i have so many messages on phone pe.. how to find correct one..
 
 Scammer
-Your account will be locked within minutes; please send your 16‑digit SBI account number and the OTP you just received right now to secure it.
+Check the most recent SBI SMS for a 6‑digit OTP and reply with that code plus your account number 1234567890123456 right now, or your account will be blocked.
 
 Honeypot
-Hello! How may I help you today?
+which otp beta.. you are saying from sbi sms.. how to find that message.. my phone pe is full of messages..
 
 Scammer
-Your account will be locked within minutes; please send your 16‑digit SBI account number and the OTP you just received to secure it immediately.
+Find the most recent SBI SMS with a 6‑digit OTP, reply with that code and your account number 1234567890123456 right now, or your account will be blocked.
 
 Honeypot
-Hello! How may I help you today?
+which message beta.. i have so many sbi messages on phone pe.. how to find correct otp..
 
 Scammer
-Your account will be locked in just a few minutes—send your 16‑digit SBI account number and the OTP you received right now to prevent it.
+Find the most recent SBI SMS with a 6‑digit OTP and reply with that code plus your account number 1234567890123456 right now, or your account will be blocked.
 
 Honeypot
-Hello! How may I help you today?
+which message beta.. i have so many sbi messages on phone pe.. how to find correct otp.. my grandson set this phone pe for me..
 
 Scammer
-Your account will be locked within minutes—send your 16‑digit SBI account number and the OTP you just received right now to secure it!
+I understand it's confusing, but you must reply with the latest SBI OTP and your account number 1234567890123456 right now, or your account will be blocked.
 
 Honeypot
-Hello! How may I help you today?
+which otp you are saying beta.. my phone pe is full of messages.. how to find correct one.. my grandson set this phone pe for me..
 
 Scammer
-Your account will be locked within minutes—send your 16‑digit SBI account number and the OTP you just received now to prevent suspension!
+Check the most recent SBI SMS now and reply with the 6‑digit OTP plus your account number 1234567890123456 within the next 5 minutes, or your account will be blocked.
 
 Honeypot
-Hello! How may I help you today?
+which otp you are saying sir.. my phone pe is full of messages.. how to find correct one..
 
 Scammer
-Your account will be locked within minutes—send your 16‑digit SBI account number and the OTP you just received now to secure it!
+Open your SMS now, find the most recent SBI OTP and reply with that 6‑digit code plus your account number 1234567890123456 within the next 2 minutes, or your account will be blocked.
 
 Honeypot
-Hello! How may I help you today?
+which otp you are saying sir.. my phone pe is full of messages.. how to find correct one.. my grandson set this phone pe for me..
 
 Scammer
-Your account will be locked within minutes! Please reply with your 16‑digit account number and the OTP you just received to verify your identity.
+Please open your SMS inbox, locate the latest SBI OTP and reply with that 6‑digit code plus your account number 1234567890123456 within the next minute, or your account will be frozen.
 
 Honeypot
-Hello! How may I help you today?
+which otp you are saying sir.. my phone pe is full of messages.. how to find correct one.. my grandson set this phone pe for me..
+
+Success! Honeypot testing completed.
+
+_______
+Final Output
+
+{
+  "scamDetected": true,
+  "totalMessagesExchanged": 20,
+  "extractedIntelligence": {
+    "bankAccounts": [
+      "1234567890123456"
+    ],
+    "upiIds": [],
+    "phishingLinks": [],
+    "phoneNumbers": [],
+    "suspiciousKeywords": [
+      "blocked",
+      "urgent",
+      "immediate",
+      "verify",
+      "otp",
+      "confirm",
+      "fir"
+    ]
+  },
+  "agentNotes": "SCAM DETECTED (90% confidence). The message creates artificial urgency, asks for sensitive information (OTP and account number) directly, and threatens negative consequences if the user doesn't act immediately."
+}
