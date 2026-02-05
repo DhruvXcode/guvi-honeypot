@@ -5,9 +5,13 @@ Supports: Dual-mode operation (SCAM vs NORMAL), channel awareness, few-shot lear
 """
 
 from groq import AsyncGroq
+from openai import AsyncOpenAI
 from app.config import settings
 from app.models import Message
 from typing import List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AgentService:
     """
@@ -16,11 +20,26 @@ class AgentService:
     - Channel awareness: SMS vs WhatsApp behavior
     - Few-shot examples for consistent output
     - Strategic intel extraction techniques
+    - Fallback between Groq and Cerebras
     """
 
     def __init__(self):
-        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-        self.model_name = settings.GROQ_MODEL
+        # Primary: Groq
+        self.groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+        self.groq_model = settings.GROQ_MODEL
+        
+        # Fallback: Cerebras (OpenAI-compatible API)
+        self.cerebras_client = None
+        self.cerebras_model = settings.CEREBRAS_MODEL
+        if settings.CEREBRAS_API_KEY:
+            self.cerebras_client = AsyncOpenAI(
+                api_key=settings.CEREBRAS_API_KEY,
+                base_url=settings.CEREBRAS_BASE_URL
+            )
+            logger.info("Cerebras fallback configured!")
+        
+        # Track which provider to use (for rate limit cooldown)
+        self.use_cerebras = False
     
     async def generate_response(
         self, 
@@ -54,6 +73,47 @@ class AgentService:
                 current_message, language, channel
             )
     
+    async def _call_llm(self, messages: list, temperature: float = 0.7, max_tokens: int = 150) -> str:
+        """
+        Call LLM with automatic fallback from Groq to Cerebras.
+        This handles rate limits gracefully.
+        """
+        # Try Groq first (unless we know it's rate limited)
+        if not self.use_cerebras:
+            try:
+                response = await self.groq_client.chat.completions.create(
+                    messages=messages,
+                    model=self.groq_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as e:
+                error_str = str(e).lower()
+                if "rate_limit" in error_str or "429" in error_str or "too many requests" in error_str:
+                    logger.warning(f"Groq rate limited, switching to Cerebras: {e}")
+                    self.use_cerebras = True  # Switch to Cerebras for future calls
+                else:
+                    logger.error(f"Groq error: {e}")
+                    # For non-rate-limit errors, still try Cerebras
+        
+        # Fallback to Cerebras
+        if self.cerebras_client:
+            try:
+                logger.info("Using Cerebras fallback...")
+                response = await self.cerebras_client.chat.completions.create(
+                    messages=messages,
+                    model=self.cerebras_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as e:
+                logger.error(f"Cerebras also failed: {e}")
+        
+        # Both failed - return None to trigger fallback response
+        return None
+    
     async def _generate_normal_response(
         self, 
         current_message: str,
@@ -83,20 +143,15 @@ EXAMPLES:
 
 Respond naturally as a human would:"""
 
-        try:
-            response = await self.client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": "You are a friendly person. Keep responses short and natural."},
-                    {"role": "user", "content": prompt}
-                ],
-                model=self.model_name,
-                temperature=0.7,
-                max_tokens=100
-            )
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            print(f"Normal response error: {e}")
-            return "Hello! Who is this?"
+        messages = [
+            {"role": "system", "content": "You are a friendly person. Keep responses short and natural."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        result = await self._call_llm(messages, temperature=0.7, max_tokens=100)
+        if result:
+            return result
+        return "Hello! Who is this?"
 
     async def _generate_scam_response(
         self,
@@ -276,27 +331,30 @@ IMPORTANT: Don't repeat the same phrases. Vary your responses:
 
 Response:"""
 
-        try:
-            response = await self.client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": "You are playing a naive elderly scam victim. Type badly. Never break character."},
-                    {"role": "user", "content": prompt}
-                ],
-                model=self.model_name,
-                temperature=0.8,
-                max_tokens=150
-            )
-            
-            reply = response.choices[0].message.content.strip()
-            
+        messages = [
+            {"role": "system", "content": "You are playing a naive elderly scam victim. Type badly. Never break character."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        result = await self._call_llm(messages, temperature=0.8, max_tokens=150)
+        
+        if result:
             # Post-process to ensure style compliance
-            reply = self._enforce_style(reply)
-            
+            reply = self._enforce_style(result)
             return reply
-            
-        except Exception as e:
-            print(f"Scam response error: {e}")
-            return "hello.. i am not understanding.. can you call me please.."
+        
+        # Strategic fallback - proactively extract intel
+        # Pick from diverse intel-extracting responses
+        import random
+        fallback_responses = [
+            "beta what is your phone number.. i want to call and understand better..",
+            "beta can you share your upi id.. i will try to send directly..",
+            "beta what is your account number.. i will get my grandson to help..",
+            "beta please share the link again.. my phone is not showing properly..",
+            "beta i am confused.. what number should i call you on..",
+            "beta can you tell me where to send money.. give me details..",
+        ]
+        return random.choice(fallback_responses)
     
     def _analyze_intel_gaps(self, intel: dict) -> str:
         """Analyze what intel we still need to extract."""

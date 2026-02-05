@@ -17,6 +17,11 @@ class Settings:
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     
+    # Cerebras Settings (Fallback LLM - for when Groq rate limits)
+    CEREBRAS_API_KEY: str = os.getenv("CEREBRAS_API_KEY", "")
+    CEREBRAS_MODEL: str = "zai-glm-4.7"
+    CEREBRAS_BASE_URL: str = "https://api.cerebras.ai/v1"
+    
     # App Settings
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     
@@ -29,4 +34,5 @@ class Settings:
         return True
 
 settings = Settings()
+
 

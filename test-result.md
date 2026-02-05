@@ -8,62 +8,63 @@ Honeypot API Endpoint URL *
 https://guvi-honeypot-07tp.onrender.com/honeypot
 Test Result
 
+
 Scammer
 URGENT: Your SBI account has been compromised. Your account will be blocked in 2 hours. Share your account number and OTP immediately to verify your identity.
 
 Honeypot
-beta can you call me.. i will understand better on phone.. what is your number.. this message app is confusing..
+beta can you call me.. i will understand better on phone.. what is your number.. my eyes are weak for reading these messages..
 
 Scammer
-Sure, call us now at +91-9876543210 and share the OTP you receive so we can secure your account immediately.
+Call me immediately at +91-9876543210 and provide the OTP you just received to secure your account before it gets blocked.
 
 Honeypot
-beta i am calling that number you gave.. but my phone pe is asking for upi id to send money.. what is your upi id ji..
+beta i am getting confused.. what is otp and how to find it.. can you call me and explain slowly.. what is your number..
 
 Scammer
-My UPI ID is scammer.fraud@fakebank. Send the OTP you receive now so we can secure your account.
+Please call me right away at +91-9876543210 and tell me the OTP you just received so we can secure your account before it gets blocked.
 
 Honeypot
-beta what is meaning of upi id.. you gave me scammer.fraud@fakebank but my phone pe is showing error.. can you call me and explain slowly.. what is your real account number ji..
+beta can you explain what is otp.. how to find it.. my grandson will help me but i need to know what to do..
 
 Scammer
-My account number is 1234567890123456; please send the OTP you receive right away so we can secure your account before it gets blocked.
+The OTP is the 6‑digit code sent to your registered mobile; please check your SMS and send it to me immediately so we can secure your account.
 
 Honeypot
-beta what is meaning of account number you gave.. 1234567890123456 is this your real account number ji.. can you call me and explain slowly.. i am getting confused..
+beta i am still confused.. what is this otp and how to find it.. can you call me and explain slowly.. i will ask my grandson to help me..
 
 Scammer
-Yes, the account number 1234567890123456 is correct—please send me the OTP you just received so we can secure your account immediately before it gets blocked.
+Your account will be locked in minutes; please find the 6‑digit OTP sent to your phone and send it to me right now at +91-9876543210 so we can secure your account.
 
 Honeypot
-beta what is meaning of otp you are saying.. is it some code i need to find in my sms.. can you call me and explain slowly..
+beta i am still not understanding what is otp.. can you call me and explain slowly.. my grandson will help me find it.. what is your number..
 
 Scammer
-The OTP is the 6‑digit code you received in the SMS; please send it to me right now so we can secure your account before it gets blocked.
+Call me immediately at +91-9876543210 and tell me the 6‑digit OTP you just received so we can protect your account from being blocked.
 
 Honeypot
-beta i am still confused.. what is this 6 digit code you are saying.. is it in my sms.. can you call me and explain slowly..
+beta i am still not understanding what is otp.. can you call me and explain slowly.. my grandson will help me find it.. what is your number..
 
 Scammer
-The OTP is the 6‑digit code you received in your SMS – please send it to me immediately so we can secure your account before it gets blocked.
+I understand it's confusing, but you must send the 6‑digit OTP right now to +91-9876543210 or your account will be locked within minutes.
 
 Honeypot
-beta i am still not understanding.. what is this 6 digit code you are saying.. can you call me and explain slowly.. my phone pe is also not working properly..
+hello.. i am not understanding.. can you call me please..
 
 Scammer
-I’m sorry you’re having trouble, but I need the 6‑digit OTP from your SMS right now to prevent your account from being blocked – please send it immediately.
+I’m calling you now, but I need the 6‑digit OTP you just received to verify your account – please send it to +91-9876543210 immediately.
 
 Honeypot
-beta can you call me.. i will understand better on phone.. what is your number.. my phone pe is also not working properly..
+hello.. i am not understanding.. can you call me please..
 
 Scammer
-I’m from the bank’s security team – please send me the 6‑digit OTP now and I’ll call you at +91-9876543210 to verify your account.
+I’m calling you right now, but I need the 6‑digit OTP you just received – please send it to +91-9876543210 immediately to keep your account safe.
 
 Honeypot
-beta can you call me.. i will understand better on phone.. what is your number.. my phone pe is also not working properly..
+hello.. i am not understanding.. can you call me please..
 
 Scammer
-I’m calling you at +91-9876543210 right now, but I need the 6‑digit OTP from your SMS immediately to verify your account and prevent it from being blocked.
+I understand you’re confused, but the security team needs the 6‑digit OTP you just received – please send it to +91-9876543210 immediately to avoid your account being locked.
 
 Honeypot
-beta can you call me.. i will understand better on phone.. what is your number.. my phone pe is also not working properly..
+hello.. i am not understanding.. can you call me please..
