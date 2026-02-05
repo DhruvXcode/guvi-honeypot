@@ -392,11 +392,29 @@ Response:"""
             target_type = missing[0]  # Prioritize: phone > upi > bank > link
             return random.choice(fallback_map[target_type])
         
-        # If we have everything, just keep engaging with generic confusion
+        # If we have everything, use DIVERSE engagement tactics (12+ options)
+        # These waste scammer time without asking for more intel
         generic_fallbacks = [
+            # Confusion tactics
             "beta i am not understanding.. please explain again slowly..",
             "wait one minute beta.. let me think what you are saying..",
             "beta my head is spinning.. can you repeat that..",
+            # Technical confusion
+            "beta how to do this.. my phone is showing error.. wait..",
+            "beta screen is frozen.. let me restart phone.. one minute..",
+            "beta my internet is slow.. message not going..",
+            # Grandchild excuses
+            "beta wait.. my grandson just came home.. asking him also..",
+            "beta grandson is saying don't click any link.. what to do..",
+            "beta grandson took phone.. he will call you back..",
+            # Time-wasting
+            "beta wait.. someone is at door.. one minute..",
+            "beta pooja time now.. can we continue after 10 minutes..",
+            "beta i need to take bp medicine.. wait 5 minutes..",
+            # Fake cooperation
+            "ok beta i am trying but getting error only.. what to do..",
+            "beta i typed wrong password.. account locked now..",
+            "beta app is asking for fingerprint but my fingers not working on phone..",
         ]
         return random.choice(generic_fallbacks)
     

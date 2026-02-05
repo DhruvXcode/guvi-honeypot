@@ -280,6 +280,16 @@ Respond in JSON:
                 )
                 content = response.choices[0].message.content
                 if content:
+                    # Cerebras may return text before/after JSON - extract it
+                    logger.debug(f"Cerebras raw response: {content[:200]}...")
+                    
+                    # Try to extract JSON from response
+                    import re
+                    json_match = re.search(r'\{[^{}]*"is_scam"[^{}]*\}', content, re.DOTALL)
+                    if json_match:
+                        return json_match.group()
+                    
+                    # If no embedded JSON, return as-is and let caller handle
                     return content
             except Exception as e:
                 logger.error(f"Cerebras scam detection failed: {e}")
