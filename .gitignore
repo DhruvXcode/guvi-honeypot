@@ -22,11 +22,29 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+venv/
+.venv/
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Test output files
+diag_result.txt
+final_result.txt
+final_response.json
+quick_result.txt
+test_result.txt
+test_output.txt
+upi_result.txt
+
+# Internal documents (not for public repo)
+miscellaneous/
+AI for Fraud Detection*.md
+GUVI hackathon*.pdf
+logs.md
+test-result.md
 
 # IDE
 .vscode/
@@ -37,3 +55,4 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+

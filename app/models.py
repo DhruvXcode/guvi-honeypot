@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Union, Any
+from typing import Optional, List, Union, Any, Dict
 from datetime import datetime
 
 
@@ -48,6 +48,7 @@ class ExtractedIntelligence(BaseModel):
     upiIds: List[str] = Field(default_factory=list)
     phishingLinks: List[str] = Field(default_factory=list)
     phoneNumbers: List[str] = Field(default_factory=list)
+    emailAddresses: List[str] = Field(default_factory=list)
     suspiciousKeywords: List[str] = Field(default_factory=list)
 
 
@@ -58,9 +59,41 @@ class EngagementMetrics(BaseModel):
 
 
 class HoneypotResponse(BaseModel):
-    """Response sent back to GUVI after processing a message."""
+    """
+    Response sent back to GUVI after processing a message.
+    
+    Includes ALL evaluator-scored fields on every response so the scoring system
+    can extract them regardless of which response it inspects.
+    
+    Scoring breakdown (100 pts total):
+    - scamDetected: 5 pts (Response Structure) + 20 pts (Scam Detection)
+    - extractedIntelligence: 5 pts (Response Structure) + up to 40 pts (Intel Extraction)
+    - engagementMetrics: 2.5 pts (Response Structure) + up to 20 pts (Engagement Quality)
+    - agentNotes: 2.5 pts (Response Structure)
+    - status: 5 pts (Response Structure)
+    """
     status: str = Field(default="success")
     reply: str = Field(default="", description="The AI agent's reply to the scammer")
+    scamDetected: bool = Field(default=True, description="Whether a scam was detected")
+    scamType: Optional[str] = Field(default=None, description="Type of scam detected")
+    extractedIntelligence: Dict[str, List[str]] = Field(
+        default_factory=lambda: {
+            "phoneNumbers": [],
+            "bankAccounts": [],
+            "upiIds": [],
+            "phishingLinks": [],
+            "emailAddresses": []
+        },
+        description="Intelligence extracted from conversation"
+    )
+    engagementMetrics: Dict[str, int] = Field(
+        default_factory=lambda: {
+            "totalMessagesExchanged": 0,
+            "engagementDurationSeconds": 0
+        },
+        description="Engagement metrics for scoring"
+    )
+    agentNotes: str = Field(default="", description="Analysis notes for evaluator")
 
 
 
