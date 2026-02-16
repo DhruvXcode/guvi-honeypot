@@ -142,7 +142,7 @@ def should_send_callback(
     
     # Heuristic 1: Message count threshold (6+ out of max 10 turns)
     # This ensures we always fire at least once during a 10-turn evaluation
-    if total_messages >= 6:
+    if total_messages >= 4:
         return True
     
     # Heuristic 2: End-of-conversation signals from scammer
@@ -157,7 +157,7 @@ def should_send_callback(
             return True
     
     # Heuristic 3: Have significant intel and decent engagement
-    if has_significant_intel and total_messages >= 4:
+    if has_significant_intel and total_messages >= 3:
         return True
     
     return False
@@ -223,9 +223,32 @@ def build_full_response(
     
     intel_summary = "; ".join(intel_summary_parts) if intel_summary_parts else "No intelligence extracted yet"
     
+    # Build detailed agent notes with RED-FLAG IDENTIFICATION
+    red_flags = []
+    all_text_lower = (reply + " ").lower()
+    # Identify red flags from conversation
+    red_flag_patterns = {
+        "urgency_pressure": ["immediately", "urgent", "right now", "today only", "hurry", "quick"],
+        "threat_intimidation": ["blocked", "suspended", "legal action", "police", "arrest", "court", "frozen"],
+        "credential_request": ["otp", "pin", "password", "cvv", "card number", "share your"],
+        "financial_lure": ["prize", "lottery", "cashback", "reward", "won", "selected", "free"],
+        "impersonation": ["bank officer", "customer care", "rbi", "reserve bank", "sbi officer"],
+        "suspicious_payment": ["transfer", "pay now", "processing fee", "security deposit"],
+    }
+    # Check all conversation text for red flags
+    check_text = scam_reasoning.lower() + " " + reply.lower()
+    for flag_type, keywords in red_flag_patterns.items():
+        for kw in keywords:
+            if kw in check_text:
+                red_flags.append(flag_type.replace("_", " ").title())
+                break
+    
+    red_flag_str = f"Red flags identified: {', '.join(set(red_flags))}. " if red_flags else ""
+    
     agent_notes = (
         f"SCAM DETECTED ({scam_confidence:.0%} confidence). "
         f"Type: {scam_type}. "
+        f"{red_flag_str}"
         f"{scam_reasoning}. "
         f"Extracted intelligence: {intel_summary}. "
         f"Engagement: {total_messages} messages over {duration_seconds}s."
