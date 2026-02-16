@@ -171,7 +171,9 @@ def build_full_response(
     total_messages: int,
     session_id: str,
     scam_reasoning: str,
-    scam_confidence: float
+    scam_confidence: float,
+    scammer_message: str = "",
+    conversation_history: List[Message] = None
 ) -> HoneypotResponse:
     """
     Build a complete response with ALL evaluator-scored fields.
@@ -225,18 +227,25 @@ def build_full_response(
     
     # Build detailed agent notes with RED-FLAG IDENTIFICATION
     red_flags = []
-    all_text_lower = (reply + " ").lower()
+    # Scan SCAMMER'S messages for red flags (not our reply!)
+    scammer_text = (scammer_message or "").lower()
+    # Also scan all scammer messages from history
+    history_text = ""
+    if conversation_history:
+        history_text = " ".join(m.text.lower() for m in conversation_history if m.sender != "agent")
+    check_text = scammer_text + " " + history_text + " " + scam_reasoning.lower()
+    
     # Identify red flags from conversation
     red_flag_patterns = {
-        "urgency_pressure": ["immediately", "urgent", "right now", "today only", "hurry", "quick"],
-        "threat_intimidation": ["blocked", "suspended", "legal action", "police", "arrest", "court", "frozen"],
-        "credential_request": ["otp", "pin", "password", "cvv", "card number", "share your"],
-        "financial_lure": ["prize", "lottery", "cashback", "reward", "won", "selected", "free"],
-        "impersonation": ["bank officer", "customer care", "rbi", "reserve bank", "sbi officer"],
-        "suspicious_payment": ["transfer", "pay now", "processing fee", "security deposit"],
+        "urgency_pressure": ["immediately", "urgent", "right now", "today only", "hurry", "quick", "fast", "asap"],
+        "threat_intimidation": ["blocked", "suspended", "legal action", "police", "arrest", "court", "frozen", "closed", "terminated"],
+        "credential_request": ["otp", "pin", "password", "cvv", "card number", "share your", "verify your", "confirm your"],
+        "financial_lure": ["prize", "lottery", "cashback", "reward", "won", "selected", "free", "bonus", "claim"],
+        "impersonation": ["bank officer", "customer care", "rbi", "reserve bank", "sbi officer", "government", "official"],
+        "suspicious_payment": ["transfer", "pay now", "processing fee", "security deposit", "registration fee", "advance payment"],
+        "phishing_attempt": ["click here", "click this", "verify link", "update your", ".xyz", "bit.ly", "tinyurl"],
+        "information_harvesting": ["bank account", "account number", "ifsc", "aadhaar", "pan card", "your number"],
     }
-    # Check all conversation text for red flags
-    check_text = scam_reasoning.lower() + " " + reply.lower()
     for flag_type, keywords in red_flag_patterns.items():
         for kw in keywords:
             if kw in check_text:
@@ -430,7 +439,9 @@ async def honeypot_handler(
             total_messages=total_messages,
             session_id=session_id,
             scam_reasoning=scam_analysis.reasoning,
-            scam_confidence=scam_analysis.confidence
+            scam_confidence=scam_analysis.confidence,
+            scammer_message=current_msg,
+            conversation_history=history
         )
         
         logger.info(f"[{session_id}] Response built: scamDetected={response.scamDetected}, "

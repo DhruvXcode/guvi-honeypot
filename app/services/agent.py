@@ -302,6 +302,8 @@ Response:"""
         if result:
             # Post-process to ensure style compliance
             reply = self._enforce_style(result)
+            # GUARANTEE a follow-up question exists
+            reply = self._guarantee_followup(reply, extracted_intel)
             return reply
         
         # Strategic fallback - pick based on what's MISSING (not random!)
@@ -371,6 +373,54 @@ Response:"""
             "ji app fingerprint maang raha hai lekin kaam nahi kar raha..",
         ]
         return random.choice(generic_fallbacks)
+    def _guarantee_followup(self, reply: str, intel: dict) -> str:
+        """Guarantee every response ends with a follow-up question targeting missing intel.
+        
+        This is a CODE-LEVEL enforcement — if the LLM didn't include a question,
+        we append one. This ensures 100% follow-up rate regardless of LLM behavior.
+        """
+        import random
+        
+        # If the reply already has a question mark, it has a follow-up
+        if "?" in reply:
+            return reply
+        
+        # Determine what intel is missing and append a targeted question
+        followup_questions = {
+            "phone": [
+                " aap call kar do na.. aapka number kya hai??",
+                " phone pe baat karte hain ji.. number batao apna??",
+                " aapka phone number kya hai.. main call karti hoon??",
+            ],
+            "upi": [
+                " aapka upi id batao na.. phone pe se bhej dungi??",
+                " paisa kahan bhejun ji.. upi id do na??",
+                " gpay ya phone pe pe bhejun.. aapka upi id kya hai??",
+            ],
+            "bank": [
+                " account number aur ifsc batao ji.. transfer kar dungi??",
+                " kis account mein bhejna hai bataiye??",
+                " bank details do na ji.. sbi se bhej dungi??",
+            ],
+            "link": [
+                " koi link ya website hai kya.. bhej do ji??",
+                " form ka link bhejiye na.. bhar dungi??",
+                " website ka link hai kya sahab??",
+            ],
+        }
+        
+        # Find first missing intel type
+        for intel_type, key in [("phone", "phoneNumbers"), ("upi", "upiIds"), ("bank", "bankAccounts"), ("link", "phishingLinks")]:
+            if not intel.get(key):
+                question = random.choice(followup_questions[intel_type])
+                # Remove trailing punctuation from reply before appending
+                reply = reply.rstrip(".")
+                return reply + question
+        
+        # All intel collected — generic engagement question
+        generic = [" aur kya karna hai ji bataiye??", " aur kuch help chahiye aapko??", " ab kya karna hai ji??"]
+        reply = reply.rstrip(".")
+        return reply + random.choice(generic)
     
     def _analyze_intel_gaps(self, intel: dict) -> str:
         """Analyze what intel we still need to extract with PRIORITY guidance."""
