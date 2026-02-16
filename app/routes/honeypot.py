@@ -312,13 +312,27 @@ async def honeypot_handler(
         logger.info(f"[{session_id}] Received message on {channel}: {current_msg[:80] if current_msg else 'empty'}...")
         
         # ============== STEP 1: SCAM DETECTION ==============
-        scam_analysis = await scam_detector.analyze(current_msg, history)
+        try:
+            scam_analysis = await scam_detector.analyze(current_msg, history)
+        except Exception as e:
+            logger.error(f"[{session_id}] Scam detection failed: {e}", exc_info=True)
+            # Default to scam for safety (honeypot should always engage)
+            from ..models import ScamAnalysis
+            scam_analysis = ScamAnalysis(
+                is_scam=True, confidence=0.75,
+                detected_patterns=["detection_error_fallback"],
+                reasoning="Scam detection service error - defaulting to scam for safety"
+            )
         
         logger.info(f"[{session_id}] Scam analysis: is_scam={scam_analysis.is_scam}, confidence={scam_analysis.confidence:.2f}")
         
         # ============== STEP 2: CUMULATIVE INTEL EXTRACTION ==============
         # Always extract from full history + current message
-        cumulative_intel = extract_cumulative_intel(current_msg, history, intelligence_service)
+        try:
+            cumulative_intel = extract_cumulative_intel(current_msg, history, intelligence_service)
+        except Exception as e:
+            logger.error(f"[{session_id}] Intel extraction failed: {e}", exc_info=True)
+            cumulative_intel = ExtractedIntelligence()
         
         has_significant_intel = any([
             cumulative_intel.bankAccounts,
@@ -336,15 +350,19 @@ async def honeypot_handler(
         scam_type = detect_scam_type(current_msg, history)
         
         # ============== STEP 4: GENERATE AGENT RESPONSE ==============
-        agent_reply = await agent_service.generate_response(
-            current_message=current_msg,
-            history=history,
-            extracted_intel=cumulative_intel.model_dump(),
-            language=language,
-            is_scam=scam_analysis.is_scam,
-            channel=channel,
-            timestamp=timestamp  # For temporal awareness
-        )
+        try:
+            agent_reply = await agent_service.generate_response(
+                current_message=current_msg,
+                history=history,
+                extracted_intel=cumulative_intel.model_dump(),
+                language=language,
+                is_scam=scam_analysis.is_scam,
+                channel=channel,
+                timestamp=timestamp  # For temporal awareness
+            )
+        except Exception as e:
+            logger.error(f"[{session_id}] Agent response generation failed: {e}", exc_info=True)
+            agent_reply = "ji mujhe samajh nahi aa raha.. aap dobara batao na.. phone pe baat karte hain.. aapka number kya hai??"
         
         logger.info(f"[{session_id}] Agent response: {agent_reply[:80]}...")
         
