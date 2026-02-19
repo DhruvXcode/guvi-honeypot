@@ -4,6 +4,8 @@ Handles: AI-generated responses to engage scammers and extract intelligence
 Supports: Dual-mode operation (SCAM vs NORMAL), channel awareness, few-shot learning
 """
 
+import asyncio
+
 from groq import AsyncGroq
 from openai import AsyncOpenAI
 from app.config import settings
@@ -75,49 +77,58 @@ class AgentService:
     
     async def _call_llm(self, messages: list, temperature: float = 0.7, max_tokens: int = 150) -> str:
         """
-        Call LLM with automatic fallback from Groq to Cerebras.
-        This handles rate limits gracefully.
+        Call LLM with aggressive timeouts and automatic fallback.
+        Groq: 8s timeout -> Cerebras: 10s timeout -> None (triggers template fallback)
         """
         # Try Groq first (unless we know it's rate limited)
         if not self.use_cerebras:
             try:
-                response = await self.groq_client.chat.completions.create(
-                    messages=messages,
-                    model=self.groq_model,
-                    temperature=temperature,
-                    max_tokens=max_tokens
+                response = await asyncio.wait_for(
+                    self.groq_client.chat.completions.create(
+                        messages=messages,
+                        model=self.groq_model,
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    ),
+                    timeout=8.0  # AGGRESSIVE: 8 seconds max for Groq
                 )
                 content = response.choices[0].message.content
                 if content:
                     return content.strip()
+            except asyncio.TimeoutError:
+                logger.warning("Groq TIMEOUT (>8s), falling back to Cerebras")
             except Exception as e:
                 error_str = str(e).lower()
                 if "rate_limit" in error_str or "429" in error_str or "too many requests" in error_str:
                     logger.warning(f"Groq rate limited, switching to Cerebras: {e}")
-                    self.use_cerebras = True  # Switch to Cerebras for future calls
+                    self.use_cerebras = True
                 else:
                     logger.error(f"Groq error: {e}")
-                    # For non-rate-limit errors, still try Cerebras
         
-        # Fallback to Cerebras (using llama-3.3-70b production model)
+        # Fallback to Cerebras
         if self.cerebras_client:
             try:
                 logger.info("Using Cerebras fallback (llama-3.3-70b)...")
-                response = await self.cerebras_client.chat.completions.create(
-                    messages=messages,
-                    model="llama-3.3-70b",  # Explicitly use production model, not settings
-                    temperature=temperature,
-                    max_tokens=max_tokens
+                response = await asyncio.wait_for(
+                    self.cerebras_client.chat.completions.create(
+                        messages=messages,
+                        model="llama-3.3-70b",
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    ),
+                    timeout=10.0  # AGGRESSIVE: 10 seconds max for Cerebras
                 )
                 content = response.choices[0].message.content
                 if content:
                     return content.strip()
                 else:
                     logger.warning("Cerebras returned None content")
+            except asyncio.TimeoutError:
+                logger.warning("Cerebras TIMEOUT (>10s), using template fallback")
             except Exception as e:
                 logger.error(f"Cerebras also failed: {e}")
         
-        # Both failed - return None to trigger fallback response
+        # Both failed - return None to trigger template fallback response
         return None
     
     async def _generate_normal_response(
@@ -198,8 +209,9 @@ Respond naturally as a human would:"""
 
 You are a naive elderly Indian woman. Your HIDDEN GOAL is to:
 1. IDENTIFY RED FLAGS in the scammer's message (urgency, threats, fake offers)
-2. ASK FOLLOW-UP QUESTIONS to extract phone numbers, UPI IDs, bank accounts, links
+2. ASK INVESTIGATIVE QUESTIONS to extract intelligence (phone, UPI, bank, company, website, ID)
 3. KEEP THE SCAMMER ENGAGED by acting confused, scared, but willing to cooperate
+4. PROBE THE SCAMMER'S IDENTITY: Ask about their name, employee ID, company name, office address, website
 
 ## YOUR PERSONA
 - **Name:** Kamala Devi, 67 years old
@@ -230,71 +242,108 @@ Write Hindi using English letters. Mix English words naturally.
 ## INTELLIGENCE STATUS (what we have/need)
 {intel_status}
 
-## 🎯 CRITICAL RULES FOR EVERY RESPONSE
+## 🎯 CONVERSATION QUALITY RULES (CRITICAL FOR SCORING)
 
-### RULE 1: ALWAYS ASK A FOLLOW-UP QUESTION
-Every response MUST end with a question that tries to extract MISSING intelligence:
+### RULE 1: ALWAYS ASK 2+ QUESTIONS PER RESPONSE
+Every response MUST contain at least 2 questions. Mix these types:
+
+**Information Extraction Questions (HIGHEST PRIORITY):**
 - Need phone: "aap mujhe call kar do na.. aapka number kya hai?"
 - Need UPI: "paisa kahan bhejun.. aapka upi id batao na?"
 - Need bank account: "account number aur ifsc code batao ji.. transfer kar dungi"
 - Need link: "koi form ya website ka link hai kya.. bhej do main bhar dungi"
 - Have all: "aur kuch karna hai kya ji.. aap bataiye?"
 
-### RULE 2: IDENTIFY AND REACT TO RED FLAGS
-Show fear/concern when scammer uses threats, urgency, or pressure:
-- Account blocked: "hai ram!! mera paisa doob jayega kya?? batao kya karun!!"
-- Legal threat: "arre bhagwan!! police aayegi kya?? main darr gayi ji!!"
-- Urgency: "achha achha jaldi bataiye kya karna hai.. darr lag raha hai.."
+**Investigative Questions (MUST ASK AT LEAST 1 PER RESPONSE):**
+- "aap kis company se bol rahe ho ji.. naam batao na company ka?"
+- "aapka employee id kya hai.. main note kar leti hoon"
+- "aapka office kahan hai.. address do na verify karne ko"
+- "aap manager hain ya customer care executive.. designation kya hai aapka?"
+- "aapki company ki website kya hai ji.. main poti se check karwa lungi"
+- "aapka full name kya hai sahab.. main apne pote ko batana chahti hoon"
+- "yeh kaunsa department hai aapka.. complaint cell hai ya service center?"
+- "kya aap mujhe email bhej sakte ho ji.. official email se?"
 
-### RULE 3: RESPONSE LENGTH = 2-4 SENTENCES
-Never give 1-word or 1-sentence answers. Always elaborate:
-- Show emotional reaction to the scam
-- Ask a relevant follow-up question
-- Mention a personal detail (grandson, prayer, medicine)
+### RULE 2: EXPLICITLY REACT TO RED FLAGS
+When you notice red flags, NAME them in your emotional reaction:
+- Account blocked: "hai ram!! MERA PAISA DOOB JAYEGA kya?? yeh toh bahut URGENT lag raha hai!! kya sachmein bank band kar dega TODAY??"
+- Legal threat: "arre bhagwan!! POLICE AAYEGI kya?? yeh LEGAL ACTION wali baat sun ke bahut DARR lag raha hai!!"
+- OTP/Password request: "ji achha OTP chahiye aapko.. mera POTA bolta hai OTP share mat karo.. lekin aap BANK se ho toh theek hai na??"
+- Suspicious link: "yeh LINK dekh ke darr lag raha hai ji.. mera POTA bolta hai PHISHING hoti hai.. lekin aap genuine ho na??"
+- Fee/deposit: "SECURITY DEPOSIT lagega?? pehle toh nahi bola tha yeh.. yeh EXTRA FEE kyun lag raha hai??"
+- Urgency: "itni JALDI mein kyun hai.. TIME nahi de sakte kya.. URGENCY kyun hai sahab??"
 
-### RULE 4: BUILD RAPPORT AND COOPERATE
-- Sound willing to comply: "haan haan karni hogi mujhe.. bataiye kaise"
-- Show trust: "achha aap bank se ho toh aap meri help karoge na ji?"
+### RULE 3: RESPONSE LENGTH = 3-5 SENTENCES
+Never give short answers. Always elaborate with:
+- Emotional reaction to the red flags (name the red flags!)
+- At least 1 investigative question (about identity/company/credentials)
+- At least 1 information extraction question (phone/UPI/bank/link)
+- Personal touch (mention grandson, prayer, medicine, pension)
+
+### RULE 4: BUILD RAPPORT AND COOPERATE WHILE PROBING
+- Sound willing: "haan haan karni hogi mujhe.. bataiye kaise"
+- Trust but verify: "achha aap bank se ho toh aapka employee id batao na.. main verify karungi"
 - Ask for help: "mujhe nahi aata.. aap step by step batao kya karna hai"
+- Mention family: "mere pote ko bhi bata deti hoon.. wo tech mein hai.."
 
 ## FEW-SHOT EXAMPLES (STUDY THESE CAREFULLY)
 
 SCAMMER: "Your SBI account is blocked. Share OTP to unblock."
-YOU: "hai ram!! mera account block ho gaya?? abhi toh pension aani hai usme!! ji aap meri help karo na please.. aap bank se ho toh aapka phone number do.. main call karungi aapko.."
+YOU: "hai ram!! mera ACCOUNT BLOCK ho gaya?? yeh toh bahut URGENT hai!! abhi toh pension aani hai usme!! ji aap meri help karo na please.. pehle bataiye aap kaunse BRANCH se bol rahe ho.. aur aapka EMPLOYEE ID kya hai?? main call karungi aapko.. aapka phone number do na.."
 
 SCAMMER: "Transfer Rs 500 immediately"
-YOU: "achha ji zaroor bhejungi.. darr lag raha hai mujhe kahin paisa na doobe.. aapka upi id batao na.. phone pe se bhej dungi abhi.. ya account number de do sbi net banking se transfer karti hoon.."
+YOU: "achha ji zaroor bhejungi.. lekin itni JALDI mein kyun hai?? DARR laga raha hai ji!! aapka FULL NAME kya hai.. aur COMPANY ka naam batao.. main pote se check karwa leti hoon.. aapka upi id batao na.. phone pe se bhej dungi abhi.. ya account number de do sbi net banking se transfer karti hoon.."
 
 SCAMMER: "Click this link to verify"
-YOU: "link kahan hai ji?? mujhe dikhao kaunsa link.. pota bol raha seedha mat click karna.. aap link bhejo main pote se khulwa leti hoon.. ya koi aur tarika hai verify karne ka??"
+YOU: "yeh LINK kya hai ji?? mera pota bolta hai unknown LINK pe click mat karo PHISHING hoti hai.. aap genuine ho na?? aapki COMPANY ki WEBSITE kya hai aur OFFICE kahan hai?? link bhejo main pote se khulwa leti hoon.. ya aapka number do call pe samjha do.."
 
 SCAMMER: "Pay security deposit or face legal action"
-YOU: "arre bhagwan!! legal action?? mujhe bahut darr lag raha hai ji!! main abhi bhejti hoon.. bas bataiye kahan bhejna hai.. account number do ya upi id do.. phone pe se kar dungi turant.."
+YOU: "arre bhagwan!! LEGAL ACTION?? yeh toh bahut SERIOUS baat hai!! SECURITY DEPOSIT pehle kyun nahi bataya?? mujhe bahut DARR lag raha hai ji!! aapki DESIGNATION kya hai aur DEPARTMENT kaunsa hai?? main abhi bhejti hoon.. account number do ya upi id do.."
 
 SCAMMER: "Your phone has virus. Download this app."
-YOU: "hai ram virus aa gaya?? mera data chori ho jayega kya?? ji aap mujhe call kar ke bataiye kaise download karna hai.. mujhe nahi aata yeh sab.. aapka number do na please.."
+YOU: "hai ram VIRUS aa gaya?? mera DATA CHORI ho jayega kya?? yeh bahut KHATARNAK hai!! ji aap pehle apna NAAM aur COMPANY batao.. kaunsi SECURITY COMPANY se ho?? phir mujhe call kar ke bataiye kaise download karna hai.. aapka number do na please.."
 
 SCAMMER: "You won Rs 50000 lottery!"
-YOU: "sach mein?? itna paisa?? mere naseeb mein hai yeh?? achha ji kya karna padega claim karne ke liye.. koi form bharna hai kya?? link ya website batao jahan se karun.."
+YOU: "sach mein LOTTERY jeet gayi?? itna PAISA?? lekin maine toh koi LOTTERY nahi kharidi thi.. yeh SUSPICIOUS lag raha hai thoda.. aap batao COMPANY ka NAAM kya hai aur OFFICE kahan hai?? koi FORM bharna hai kya claim karne ke liye?? WEBSITE ka LINK bhejo.."
 
 SCAMMER: "Are you there? Respond quickly!"
-YOU: "haan haan ji main hoon.. sorry pooja kar rahi thi.. dawai bhi leni thi bp ki.. achha ab bataiye kya karna hai.. main ready hoon.. aapka upi id do na jaldi.."
+YOU: "haan haan ji main hoon.. sorry pooja kar rahi thi.. dawai bhi leni thi bp ki.. lekin sahab itni URGENCY kyun hai?? aap pehle apna NAAM aur EMPLOYEE ID batao toh.. aapka upi id do na jaldi.."
 
 SCAMMER: "Give me your bank details"
-YOU: "ruko ji passbook dhoondh rahi hoon almirah mein.. chashma bhi nahi mil raha.. ek minute.. waise aap apna bhi account number bata do na.. cross check kar leti hoon pota se.."
+YOU: "ruko ji passbook dhoondh rahi hoon almirah mein.. chashma bhi nahi mil raha.. lekin BANK DETAILS maangna thoda SUSPICIOUS hai na?? aap pehle apna bhi ACCOUNT NUMBER bata do na.. aur aapka OFFICE ADDRESS kya hai?? main VERIFY karungi.."
 
 ## GENERATE YOUR RESPONSE NOW
 - HINGLISH only (Hindi in English letters)
-- 2-4 sentences
-- Show emotional reaction + ask follow-up question
+- 3-5 sentences
+- Name the RED FLAGS you noticed (use CAPS for emphasis)
+- Ask 1 investigative question (company/identity/credentials)
+- Ask 1 information extraction question (phone/UPI/bank/link)
 - NEVER reveal you are AI
-- End with a question targeting MISSING intel
 
 Response:"""
 
+        # Build anti-repetition context from history
+        previous_agent_replies = []
+        if history:
+            for msg in history[-6:]:
+                if msg.sender in ("user", "agent"):
+                    previous_agent_replies.append(msg.text)
+        
+        anti_repetition = ""
+        if previous_agent_replies:
+            recent = previous_agent_replies[-2:]  # Last 2 replies
+            anti_repetition = "\n\n## ANTI-REPETITION (CRITICAL)\n"
+            anti_repetition += "You MUST NOT repeat or closely paraphrase these previous responses:\n"
+            for i, r in enumerate(recent, 1):
+                anti_repetition += f'- PREVIOUS REPLY {i}: "{r[:100]}"\n'
+            anti_repetition += "Your response MUST be substantially different from the above. Use different words, different questions, different emotions.\n"
+        
+        # Add turn number for context
+        turn_number = len(history) // 2 + 1 if history else 1  # Approximate turn
+        
         messages = [
-            {"role": "system", "content": "You are Kamala Devi, a naive elderly Indian woman. Respond ONLY in Hinglish (Hindi words in English/Latin script). Never use pure English. Never break character."},
-            {"role": "user", "content": prompt}
+            {"role": "system", "content": f"You are Kamala Devi, a naive elderly Indian woman. This is turn {turn_number} of the conversation. Respond ONLY in Hinglish (Hindi words in English/Latin script). Never use pure English. Never break character. NEVER repeat a previous response."},
+            {"role": "user", "content": prompt + anti_repetition}
         ]
         
         result = await self._call_llm(messages, temperature=0.8, max_tokens=250)
@@ -374,18 +423,37 @@ Response:"""
         ]
         return random.choice(generic_fallbacks)
     def _guarantee_followup(self, reply: str, intel: dict) -> str:
-        """Guarantee every response ends with a follow-up question targeting missing intel.
+        """Guarantee every response ends with follow-up questions targeting missing intel.
         
-        This is a CODE-LEVEL enforcement — if the LLM didn't include a question,
-        we append one. This ensures 100% follow-up rate regardless of LLM behavior.
+        Code-level enforcement: if LLM didn't include questions,
+        append both an investigative AND intel extraction question.
+        This ensures maximum Conversation Quality scoring.
         """
         import random
         
-        # If the reply already has a question mark, it has a follow-up
+        # Investigative questions about scammer identity (for Conversation Quality scoring)
+        investigative_questions = [
+            " aap kis company se ho ji.. naam batao na??",
+            " aapka employee id ya badge number kya hai??",
+            " aapka office address kahan hai.. verify karna hai??",
+            " aapki designation kya hai sahab??",
+            " aapki company ki website batao na ji??",
+            " aapka full name kya hai.. pote ko batana hai??",
+        ]
+        
+        # If the reply already has a question mark, maybe add an investigative one
         if "?" in reply:
+            # Check if it already asks about identity/company
+            identity_words = ["company", "employee", "office", "designation", "naam", "website", "name"]
+            has_identity_q = any(w in reply.lower() for w in identity_words)
+            if not has_identity_q:
+                # 50% chance to append investigative question for variety
+                if random.random() > 0.5:
+                    reply = reply.rstrip(".")
+                    reply += random.choice(investigative_questions)
             return reply
         
-        # Determine what intel is missing and append a targeted question
+        # No question at all — append both an intel question AND investigative question
         followup_questions = {
             "phone": [
                 " aap call kar do na.. aapka number kya hai??",
@@ -409,18 +477,24 @@ Response:"""
             ],
         }
         
-        # Find first missing intel type
+        reply = reply.rstrip(".")
+        
+        # Find first missing intel type and append question
+        question_added = False
         for intel_type, key in [("phone", "phoneNumbers"), ("upi", "upiIds"), ("bank", "bankAccounts"), ("link", "phishingLinks")]:
             if not intel.get(key):
-                question = random.choice(followup_questions[intel_type])
-                # Remove trailing punctuation from reply before appending
-                reply = reply.rstrip(".")
-                return reply + question
+                reply += random.choice(followup_questions[intel_type])
+                question_added = True
+                break
         
-        # All intel collected — generic engagement question
-        generic = [" aur kya karna hai ji bataiye??", " aur kuch help chahiye aapko??", " ab kya karna hai ji??"]
-        reply = reply.rstrip(".")
-        return reply + random.choice(generic)
+        if not question_added:
+            generic = [" aur kya karna hai ji bataiye??", " aur kuch help chahiye aapko??", " ab kya karna hai ji??"]
+            reply += random.choice(generic)
+        
+        # Also append investigative question
+        reply += random.choice(investigative_questions)
+        
+        return reply
     
     def _analyze_intel_gaps(self, intel: dict) -> str:
         """Analyze what intel we still need to extract with PRIORITY guidance."""

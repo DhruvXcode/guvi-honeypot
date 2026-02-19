@@ -36,30 +36,35 @@ class CallbackService:
         total_messages: int,
         duration_seconds: int,
         intel: ExtractedIntelligence,
-        agent_notes: str
+        agent_notes: str,
+        confidence_level: float = 0.95
     ) -> bool:
         """
         Send the final result to GUVI's callback endpoint.
         
-        Payload format matches the evaluator's expected structure exactly.
+        Feb 19 format: includes sessionId, confidenceLevel, new intel types,
+        root-level engagement fields.
         """
         
-        # Build payload in EXACTLY the format the evaluator expects
-        # NOTE: totalMessagesExchanged is sent BOTH at root level (for GUVI endpoint)
-        # AND inside engagementMetrics (for evaluator scoring)
+        # Build payload with ALL fields from Feb 19 rubric
         payload = {
             "sessionId": session_id,
             "status": "success",
             "scamDetected": scam_detected,
             "scamType": scam_type,
-            "totalMessagesExchanged": total_messages,  # ROOT level for GUVI endpoint
+            "confidenceLevel": round(confidence_level, 2),
+            # Root-level engagement (1pt structure)
+            "totalMessagesExchanged": total_messages,
+            "engagementDurationSeconds": duration_seconds,
             "extractedIntelligence": {
                 "phoneNumbers": intel.phoneNumbers,
                 "bankAccounts": intel.bankAccounts,
                 "upiIds": intel.upiIds,
                 "phishingLinks": intel.phishingLinks,
                 "emailAddresses": intel.emailAddresses,
-                "suspiciousKeywords": intel.suspiciousKeywords
+                "caseIds": intel.caseIds,
+                "policyNumbers": intel.policyNumbers,
+                "orderNumbers": intel.orderNumbers
             },
             "engagementMetrics": {
                 "totalMessagesExchanged": total_messages,

@@ -5,6 +5,7 @@ Handles: Scam vs Legitimate message classification with confidence scoring
 
 import json
 import re
+import asyncio
 import logging
 from groq import AsyncGroq
 from openai import AsyncOpenAI
@@ -251,15 +252,20 @@ Respond in JSON:
         # Try Groq first
         if not self.use_cerebras:
             try:
-                response = await self.groq_client.chat.completions.create(
-                    messages=messages,
-                    model=self.groq_model,
-                    response_format={"type": "json_object"},
-                    temperature=0.1
+                response = await asyncio.wait_for(
+                    self.groq_client.chat.completions.create(
+                        messages=messages,
+                        model=self.groq_model,
+                        response_format={"type": "json_object"},
+                        temperature=0.1
+                    ),
+                    timeout=8.0  # AGGRESSIVE: 8 seconds max
                 )
                 content = response.choices[0].message.content
                 if content:
                     return content
+            except asyncio.TimeoutError:
+                logger.warning("Groq TIMEOUT (>8s) for scam detection, falling back to Cerebras")
             except Exception as e:
                 error_str = str(e).lower()
                 if "rate_limit" in error_str or "429" in error_str:
@@ -272,11 +278,14 @@ Respond in JSON:
         if self.cerebras_client:
             try:
                 logger.info("Using Cerebras for scam detection...")
-                response = await self.cerebras_client.chat.completions.create(
-                    messages=messages,
-                    model=self.cerebras_model,
-                    temperature=0.1,
-                    max_tokens=500
+                response = await asyncio.wait_for(
+                    self.cerebras_client.chat.completions.create(
+                        messages=messages,
+                        model=self.cerebras_model,
+                        temperature=0.1,
+                        max_tokens=500
+                    ),
+                    timeout=10.0  # AGGRESSIVE: 10 seconds max
                 )
                 content = response.choices[0].message.content
                 if content:

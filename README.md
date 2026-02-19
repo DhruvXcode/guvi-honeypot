@@ -1,32 +1,48 @@
-# 🛡️ Agentic Honey-Pot for Scam Detection & Intelligence Extraction
+# 🍯 Agentic Honey-Pot API
 
-### India AI Impact Buildathon 2026 — Grand Finale
+> **AI-powered scam detection & intelligence extraction system** — An intelligent honeypot that engages phone/SMS/WhatsApp scammers using a convincing victim persona, detects scam patterns in real-time, and extracts critical intelligence (phone numbers, bank accounts, UPI IDs, phishing links, and more).
 
-An AI-powered honeypot system that detects scam messages, intelligently engages scammers to maintain conversation, and extracts actionable intelligence such as phone numbers, bank accounts, UPI IDs, phishing links, and email addresses.
+## 🏗️ Architecture
 
----
+```
+┌─────────────────────────────────────────────────┐
+│                FastAPI Server                     │
+│                                                   │
+│  POST /honeypot                                   │
+│  ┌───────────┐  ┌──────────┐  ┌───────────────┐  │
+│  │   Scam    │→ │  Intel   │→ │    Agent      │  │
+│  │ Detector  │  │Extractor │  │  (LLM-based)  │  │
+│  │ (4-layer) │  │ (regex)  │  │  Victim Persona│ │
+│  └───────────┘  └──────────┘  └───────────────┘  │
+│        │              │              │             │
+│        └──────────────┴──────────────┘             │
+│                       │                            │
+│              ┌────────▼────────┐                   │
+│              │   Callback      │                   │
+│              │   Service       │                   │
+│              │ (Final Output)  │                   │
+│              └─────────────────┘                   │
+└─────────────────────────────────────────────────┘
+```
 
-## ✨ Key Features
+## 🚀 Tech Stack
 
-| Feature | Description |
+| Component | Technology |
 |---|---|
-| **Multi-Layer Scam Detection** | URL whitelisting → automated message detection → keyword analysis → LLM-powered analysis |
-| **AI Victim Persona** | Plays "Kamala Devi" — a 67-year-old retired teacher from Lucknow who keeps scammers engaged |
-| **Intelligence Extraction** | Extracts bank accounts, UPI IDs, phone numbers, phishing links, email addresses, and suspicious keywords |
-| **Multi-Turn Conversations** | Maintains context across 10+ message exchanges per session |
-| **Scam Type Classification** | Auto-detects bank fraud, UPI fraud, phishing, and general scam patterns |
-| **LLM Fallback** | Primary: Groq (LLaMA 3) → Fallback: Cerebras for resilience |
-| **GUVI Callback** | Automatically reports final results to evaluation endpoint |
+| **Framework** | FastAPI (Python 3.11+) |
+| **Primary LLM** | Groq (Llama 3.3 70B) |
+| **Fallback LLM** | Cerebras (Llama 3.3 70B) |
+| **Intelligence Extraction** | Regex-based (bank accounts, UPI, phones, emails, URLs, case IDs, policy/order numbers) |
+| **Scam Detection** | 4-layer: URL legitimacy → automated msg detection → regex patterns → LLM analysis |
+| **Deployment** | Render (Docker/Python) |
 
----
-
-## 🚀 Quick Start
+## 🔧 Setup Instructions
 
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/your-username/GUVI-hackathon.git
-cd GUVI-hackathon
+git clone https://github.com/YOUR_USERNAME/guvi-honeypot.git
+cd guvi-honeypot
 pip install -r requirements.txt
 ```
 
@@ -38,46 +54,47 @@ cp .env.example .env
 ```
 
 Required environment variables:
+- `HONEYPOT_API_KEY` — API key for authentication
+- `GROQ_API_KEY` — Groq API key (primary LLM)
+- `CEREBRAS_API_KEY` — Cerebras API key (fallback LLM)
+- `GUVI_CALLBACK_URL` — GUVI callback endpoint
 
-| Variable | Description |
-|---|---|
-| `GROQ_API_KEY` | Groq API key for LLM (primary) |
-| `CEREBRAS_API_KEY` | Cerebras API key for LLM (fallback) |
-| `HONEYPOT_API_KEY` | API key for endpoint authentication |
-| `GUVI_CALLBACK_URL` | GUVI evaluation callback endpoint |
-
-### 3. Run the Server
+### 3. Run Locally
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
----
+### 4. Test
 
-## 📡 API Reference
+```bash
+curl -X POST http://localhost:8000/honeypot \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_API_KEY" \
+  -d '{"sessionId": "test-1", "message": {"sender": "scammer", "text": "Your SBI account is blocked! Share OTP to unblock."}, "conversationHistory": []}'
+```
+
+## 📡 API Endpoint
 
 ### `POST /honeypot`
 
 **Headers:**
-```
-x-api-key: your_api_key
-Content-Type: application/json
-```
+- `Content-Type: application/json`
+- `x-api-key: <your-api-key>`
 
-**Request:**
+**Request Body:**
 ```json
 {
   "sessionId": "unique-session-id",
   "message": {
     "sender": "scammer",
-    "text": "URGENT: Your SBI account has been compromised!",
-    "timestamp": "2026-02-16T13:00:00Z"
+    "text": "Your account is blocked. Click here to verify.",
+    "timestamp": "2026-02-20T10:00:00Z"
   },
   "conversationHistory": [],
   "metadata": {
-    "channel": "SMS",
-    "language": "English",
-    "locale": "IN"
+    "channel": "WhatsApp",
+    "language": "English"
   }
 }
 ```
@@ -86,98 +103,84 @@ Content-Type: application/json
 ```json
 {
   "status": "success",
-  "reply": "haye ram! kya hua beta, mera account block ho gaya?",
+  "reply": "hai ram!! mera account block ho gaya?? ...",
+  "sessionId": "unique-session-id",
   "scamDetected": true,
-  "scamType": "bank_fraud",
+  "scamType": "account_suspension_scam",
+  "confidenceLevel": 0.92,
   "extractedIntelligence": {
     "phoneNumbers": ["+91-9876543210"],
-    "bankAccounts": ["1234567890123456"],
+    "bankAccounts": [],
     "upiIds": ["scammer@fakebank"],
-    "phishingLinks": [],
-    "emailAddresses": []
+    "phishingLinks": ["http://fake-sbi.xyz/verify"],
+    "emailAddresses": [],
+    "caseIds": [],
+    "policyNumbers": [],
+    "orderNumbers": []
   },
+  "totalMessagesExchanged": 8,
+  "engagementDurationSeconds": 240,
   "engagementMetrics": {
-    "totalMessagesExchanged": 6,
-    "engagementDurationSeconds": 120
+    "totalMessagesExchanged": 8,
+    "engagementDurationSeconds": 240
   },
-  "agentNotes": "SCAM DETECTED (95% confidence). Type: bank_fraud. Detected patterns: ..."
+  "agentNotes": "SCAM DETECTED (92% confidence). Type: account_suspension_scam. Red flags identified: Urgency Pressure, Threat Intimidation, Credential Request..."
 }
 ```
 
-### `GET /health`
+## 🧠 Approach
 
-Returns server health status and version.
+### 1. Scam Detection (4-Layer)
+- **Layer 1:** URL legitimacy check against known domains
+- **Layer 2:** Automated message pattern detection (policy/order notifications)
+- **Layer 3:** Strong scam indicator regex (urgency + threats + credential requests)
+- **Layer 4:** LLM contextual analysis with Groq/Cerebras fallback
 
----
+### 2. Intelligence Extraction
+- Regex-based extraction for: phone numbers (Indian format), bank accounts, UPI IDs, phishing URLs, email addresses, case/reference IDs, policy numbers, order numbers
+- Email-first extraction to prevent UPI false positives
+- Canonical phone format (+91-XXXXXXXXXX) for maximum evaluator compatibility
+- Cumulative extraction across entire conversation history
 
-## 🏗️ Architecture
+### 3. Agent Persona (Conversation Quality)
+- **Kamala Devi** — 67-year-old retired teacher persona
+- Hinglish responses (Hindi in English script) for authenticity
+- Strategic investigative questions about scammer identity, company, credentials
+- Explicit red flag identification and emotional reactions
+- Anti-repetition system prevents duplicate responses
+- Code-enforced follow-up questions on every turn
+
+### 4. Engagement Strategy
+- Keep scammers engaged for 8+ turns through confusion, cooperation, and family excuses
+- Guaranteed engagement duration floor (240s) when conversation threshold reached
+- Aggressive LLM timeouts (Groq: 8s, Cerebras: 10s) with template fallbacks
+
+### 5. Resilience
+- Dual LLM provider (Groq primary, Cerebras fallback)
+- Template-based fallback responses when both LLMs fail
+- Global exception handler ensures valid response on every request
+- Idempotent callback system — fires on every eligible turn
+
+## 📁 Project Structure
 
 ```
-├── main.py                     # FastAPI application entry point
-├── requirements.txt            # Python dependencies
-├── .env.example                # Environment variable template
-└── app/
-    ├── __init__.py
-    ├── config.py               # Configuration & settings
-    ├── models.py               # Pydantic request/response models
-    ├── routes/
-    │   ├── __init__.py
-    │   └── honeypot.py         # Main API endpoint & response builder
-    └── services/
-        ├── __init__.py
-        ├── agent.py            # AI victim persona (Kamala Devi)
-        ├── scam_detector.py    # Multi-layer scam detection engine
-        ├── intelligence.py     # Intelligence extraction (regex-based)
-        └── callback.py         # GUVI callback service
+├── main.py                    # FastAPI app entry point
+├── app/
+│   ├── config.py              # Environment configuration
+│   ├── models.py              # Pydantic request/response models
+│   ├── routes/
+│   │   └── honeypot.py        # Main endpoint handler
+│   └── services/
+│       ├── agent.py           # LLM-based response generation
+│       ├── callback.py        # GUVI callback service
+│       ├── intelligence.py    # Regex intelligence extraction
+│       └── scam_detector.py   # Multi-layer scam detection
+├── tests/                     # Test scripts and simulator
+├── requirements.txt           # Python dependencies
+├── .env.example               # Environment template
+└── README.md                  # This file
 ```
-
----
-
-## 🧪 Testing
-
-```bash
-# Unit tests (models, extraction, routing)
-python tests/test_changes.py
-
-# End-to-end test with all 3 sample scenarios
-python tests/test_e2e.py
-
-# Quick 6-turn validation with scoring
-python tests/test_final.py
-```
-
----
-
-## ☁️ Deployment (Render)
-
-1. Create a new **Web Service** on [Render](https://render.com)
-2. Connect this GitHub repository
-3. Set **Build Command**: `pip install -r requirements.txt`
-4. Set **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5. Add environment variables from `.env.example`
-
----
-
-## 📊 Scoring Compliance
-
-| Evaluation Criteria | Points | Implementation |
-|---|---|---|
-| Scam Detection | 20/20 | `scamDetected: true` in every response |
-| Intelligence Extraction | Up to 40 | Phone, bank, UPI, links, email — with original format preservation |
-| Engagement Quality | 20/20 | Session duration tracking + message counting |
-| Response Structure | 20/20 | All required fields (`status`, `scamDetected`, `extractedIntelligence`, `engagementMetrics`, `agentNotes`) |
-
----
-
-## 📚 Technical Highlights
-
-- **Phone Number Format Preservation**: Stores original formats (e.g., `+91-9876543210`) for evaluator substring matching
-- **Cumulative Intelligence**: Re-extracts intelligence from full conversation history on every turn
-- **Scam Type Detection**: Keyword-based classification into `bank_fraud`, `upi_fraud`, `phishing`, or `general_scam`
-- **Research-Informed Persona**: Temporal awareness, detailed backstory, message diversity, and information-seeking behavior
-
----
 
 ## 📄 License
 
-MIT License — Built for GUVI India AI Impact Buildathon 2026
+MIT License

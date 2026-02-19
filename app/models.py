@@ -49,6 +49,10 @@ class ExtractedIntelligence(BaseModel):
     phishingLinks: List[str] = Field(default_factory=list)
     phoneNumbers: List[str] = Field(default_factory=list)
     emailAddresses: List[str] = Field(default_factory=list)
+    # New fields from Feb 19 rubric
+    caseIds: List[str] = Field(default_factory=list)
+    policyNumbers: List[str] = Field(default_factory=list)
+    orderNumbers: List[str] = Field(default_factory=list)
     suspiciousKeywords: List[str] = Field(default_factory=list)
 
 
@@ -62,38 +66,44 @@ class HoneypotResponse(BaseModel):
     """
     Response sent back to GUVI after processing a message.
     
-    Includes ALL evaluator-scored fields on every response so the scoring system
-    can extract them regardless of which response it inspects.
-    
-    Scoring breakdown (100 pts total):
-    - scamDetected: 5 pts (Response Structure) + 20 pts (Scam Detection)
-    - extractedIntelligence: 5 pts (Response Structure) + up to 40 pts (Intel Extraction)
-    - engagementMetrics: 2.5 pts (Response Structure) + up to 20 pts (Engagement Quality)
-    - agentNotes: 2.5 pts (Response Structure)
-    - status: 5 pts (Response Structure)
+    Feb 19 Scoring (100 pts total):
+    - Scam Detection:        20 pts (scamDetected: true)
+    - Intelligence:          30 pts (30 ÷ total_fake_fields per item)
+    - Conversation Quality:  30 pts (turns, questions, red flags, elicitation)
+    - Engagement Quality:    10 pts (duration + messages)
+    - Response Structure:    10 pts (required + optional fields)
     """
+    # Required fields (2pts each for sessionId, scamDetected, extractedIntelligence)
     status: str = Field(default="success")
     reply: str = Field(default="", description="The AI agent's reply to the scammer")
-    scamDetected: bool = Field(default=True, description="Whether a scam was detected")
-    scamType: Optional[str] = Field(default=None, description="Type of scam detected")
+    sessionId: Optional[str] = Field(default=None, description="Session ID (2pts structure)")
+    scamDetected: bool = Field(default=True, description="Whether a scam was detected (2pts structure)")
+    scamType: Optional[str] = Field(default=None, description="Type of scam detected (1pt structure)")
+    confidenceLevel: Optional[float] = Field(default=None, description="Confidence 0-1 (1pt structure)")
     extractedIntelligence: Dict[str, List[str]] = Field(
         default_factory=lambda: {
             "phoneNumbers": [],
             "bankAccounts": [],
             "upiIds": [],
             "phishingLinks": [],
-            "emailAddresses": []
+            "emailAddresses": [],
+            "caseIds": [],
+            "policyNumbers": [],
+            "orderNumbers": []
         },
-        description="Intelligence extracted from conversation"
+        description="Intelligence extracted from conversation (2pts structure)"
     )
+    # Engagement fields (1pt for both together)
+    totalMessagesExchanged: Optional[int] = Field(default=None, description="Root-level message count")
+    engagementDurationSeconds: Optional[int] = Field(default=None, description="Root-level duration")
     engagementMetrics: Dict[str, int] = Field(
         default_factory=lambda: {
             "totalMessagesExchanged": 0,
             "engagementDurationSeconds": 0
         },
-        description="Engagement metrics for scoring"
+        description="Engagement metrics nested object"
     )
-    agentNotes: str = Field(default="", description="Analysis notes for evaluator")
+    agentNotes: str = Field(default="", description="Analysis notes for evaluator (1pt structure)")
 
 
 
