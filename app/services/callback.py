@@ -96,7 +96,7 @@ class CallbackService:
                     callback_url, 
                     json=payload, 
                     headers=headers,
-                    timeout=15.0  # Generous timeout for reliability
+                    timeout=8.0  # Must complete within GUVI's 10s wait window
                 )
                 response.raise_for_status()
                 

@@ -76,6 +76,19 @@ class ScamDetectorService:
             r"won\s*(a\s*)?(lottery|prize|reward)",
             r"unauthorized\s*transaction",
             r"kyc\s*(expir|updat|mandatory)",
+            # Additional urgency/coercion patterns
+            r"(unblock|re-?activate)\s*(your\s*)?(account|card)",
+            r"(share|send)\s*(it\s*)?now",
+            r"(share|send)\s*(it\s*)?immediately",
+            r"urgent\s*action\s*required",
+            r"(account|card)\s*(is\s*)?at\s*risk",
+        ]
+        
+        # Coercive/threatening keywords that override automated classification
+        self.coercive_keywords = [
+            "unblock", "suspend", "blocked", "share now", "share immediately",
+            "urgent", "immediately", "act now", "at risk", "will be closed",
+            "verify your", "confirm your identity", "last chance", "final warning"
         ]
         
     def _check_url_legitimacy(self, text: str) -> Tuple[bool, List[str]]:
@@ -88,7 +101,9 @@ class ScamDetectorService:
         for url in urls:
             is_legit = False
             for domain in self.legitimate_domains:
-                if url.endswith(domain) or domain in url:
+                # Proper suffix match: url must END with domain or .domain
+                # Prevents spoofing like amazon.in.verify-now.ru
+                if url == domain or url.endswith("." + domain):
                     is_legit = True
                     legitimate_urls.append(url)
                     break
@@ -101,13 +116,30 @@ class ScamDetectorService:
         return False, suspicious_urls
     
     def _is_automated_message(self, text: str) -> bool:
-        """Detect if message is automated/bulk (likely legitimate service)."""
+        """Detect if message is automated/bulk (likely legitimate service).
+        
+        Returns False (not automated) if coercive/threatening language is also
+        present, since real automated notifications don't use threats.
+        """
         text_lower = text.lower()
         
+        # First check: does it look automated?
+        is_automated = False
         for pattern in self.automated_patterns:
             if re.search(pattern, text_lower, re.IGNORECASE):
-                return True
-        return False
+                is_automated = True
+                break
+        
+        if not is_automated:
+            return False
+        
+        # Override: if coercive/threatening language is present, it's NOT automated.
+        # Real service notifications (OTP, order, delivery) don't contain threats.
+        for keyword in self.coercive_keywords:
+            if keyword in text_lower:
+                return False
+        
+        return True
     
     def _has_strong_scam_indicators(self, text: str) -> Tuple[bool, List[str]]:
         """Check for strong scam language patterns."""
@@ -142,16 +174,7 @@ class ScamDetectorService:
                 reasoning=f"Message contains URLs from trusted domains: {', '.join(url_list[:3])}"
             )
         
-        # ============== LAYER 2: AUTOMATED MESSAGE CHECK ==============
-        if self._is_automated_message(message):
-            return ScamAnalysis(
-                is_scam=False,
-                confidence=0.75,
-                detected_patterns=["automated_notification"],
-                reasoning="Message appears to be an automated notification from a service (contains policy/order numbers, OTPs, or delivery info)"
-            )
-        
-        # ============== LAYER 3: STRONG SCAM INDICATORS ==============
+        # ============== LAYER 2: STRONG SCAM INDICATORS (check BEFORE automated) ==============
         has_scam_signals, scam_patterns = self._has_strong_scam_indicators(message)
         if has_scam_signals:
             return ScamAnalysis(
@@ -159,6 +182,15 @@ class ScamDetectorService:
                 confidence=0.9,
                 detected_patterns=scam_patterns,
                 reasoning=f"Strong scam indicators detected: urgency + threat language"
+            )
+        
+        # ============== LAYER 3: AUTOMATED MESSAGE CHECK (only if no scam signals) ==============
+        if self._is_automated_message(message):
+            return ScamAnalysis(
+                is_scam=False,
+                confidence=0.75,
+                detected_patterns=["automated_notification"],
+                reasoning="Message appears to be an automated notification from a service (contains policy/order numbers, OTPs, or delivery info)"
             )
         
         # ============== LAYER 4: LLM CONTEXTUAL ANALYSIS ==============

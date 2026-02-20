@@ -1,17 +1,17 @@
 """
-Honeypot Route - GUVI Hackathon Grand Finale
+Honeypot Route - Scam Detection & Agent Engagement API
 Main API endpoint for scam detection and agent engagement.
 
-Response Format (CRITICAL for scoring):
-Every response includes ALL evaluator-scored fields so the scoring system
+Response Format:
+Every response includes ALL scored fields so the scoring system
 can extract them regardless of which response it inspects.
 
-Scoring system (100 pts total):
+Scoring (100 pts total):
 - Scam Detection:           20 pts (scamDetected: true)
-- Intelligence Extraction:  40 pts (phoneNumbers, bankAccounts, upiIds, phishingLinks @ 10 each)
-- Engagement Quality:       20 pts (duration > 0: 5, > 60: 5, messages > 0: 5, >= 5: 5)
-- Response Structure:       20 pts (status: 5, scamDetected: 5, extractedIntelligence: 5,
-                                    engagementMetrics: 2.5, agentNotes: 2.5)
+- Intelligence Extraction:  30 pts (dynamic: 30 ÷ total fake fields per item)
+- Conversation Quality:     30 pts (turns, questions, red flags, elicitation)
+- Engagement Quality:       10 pts (duration thresholds + message count)
+- Response Structure:       10 pts (required + optional fields)
 """
 
 from fastapi import APIRouter, Header, HTTPException, Depends, BackgroundTasks, Request
@@ -63,8 +63,10 @@ def extract_cumulative_intel(
     """
     cumulative_intel = ExtractedIntelligence()
     
-    # Extract from all history messages
+    # Extract from history - ONLY scammer messages (not our own agent replies)
     for msg in history:
+        if msg.sender and msg.sender.lower() in ("user", "agent"):
+            continue  # Skip our own replies to avoid polluting intel
         msg_intel = intel_service.extract(msg.text)
         cumulative_intel = intel_service.merge_intelligence(cumulative_intel, msg_intel)
     
