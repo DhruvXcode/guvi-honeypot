@@ -2,13 +2,13 @@
 
 ## Summary
 - Total: 20
-- Passed: 17
-- Failed: 3
-- Pass Rate: 85.0%
+- Passed: 19
+- Failed: 1
+- Pass Rate: 95.0%
 
 ## Suite Breakdown
 - intelligence: 8/8 passed, 0 failed
-- scam_detector: 3/5 passed, 2 failed
+- scam_detector: 5/5 passed, 0 failed
 - route: 6/6 passed, 0 failed
 - live_endpoint: 0/1 passed, 1 failed
 
@@ -31,16 +31,16 @@
   Details: {"input": "Case REF-2026-001, policy POL-778899, order ORD-556677.", "output": {"bankAccounts": [], "upiIds": [], "phishingLinks": [], "phoneNumbers": [], "emailAddresses": [], "caseIds": ["REF-2026", "POL-778899", "ORD-556677"], "policyNumbers": ["POL-778899"], "orderNumbers": ["ORD-556677"], "suspiciousKeywords": []}}
 - [PASS] scam_detector::legit_domain_detected
   Details: {"input": "https://www.amazon.in/help", "is_legit": true, "urls": ["www.amazon.in"]}
-- [FAIL] scam_detector::domain_spoofing_not_whitelisted
-  Details: {"input": "https://amazon.in.verify-now.ru/login", "is_legit": true, "urls": ["amazon.in.verify-now.ru"]}
-- [FAIL] scam_detector::otp_phrase_not_blindly_legit
-  Details: {"input": "Your OTP is 456789. Share now to unblock account.", "automated_detected": true}
+- [PASS] scam_detector::domain_spoofing_not_whitelisted
+  Details: {"input": "https://amazon.in.verify-now.ru/login", "is_legit": false, "urls": ["amazon.in.verify-now.ru"]}
+- [PASS] scam_detector::otp_phrase_not_blindly_legit
+  Details: {"input": "Your OTP is 456789. Share now to unblock account.", "automated_detected": false}
 - [PASS] scam_detector::strong_scam_indicators_detected
   Details: {"input": "Your account will be blocked today. Share your OTP immediately.", "patterns": ["account (will be )?(blocked|suspended|closed) today", "share (your )?(otp|pin|password)"]}
 - [PASS] scam_detector::analyze_quick_flags_obvious_scam
   Details: {"output": {"is_scam": true, "confidence": 0.85, "detected_patterns": ["share (your )?(otp|pin|password)"], "reasoning": "Quick scan: scam patterns detected"}}
 - [PASS] route::spec_shape_on_valid_request
-  Details: {"status_code": 200, "elapsed_ms": 9.07, "keys": ["status", "reply", "sessionId", "scamDetected", "scamType", "confidenceLevel", "extractedIntelligence", "totalMessagesExchanged", "engagementDurationSeconds", "engagementMetrics", "agentNotes"]}
+  Details: {"status_code": 200, "elapsed_ms": 43.18, "keys": ["status", "reply", "sessionId", "scamDetected", "scamType", "confidenceLevel", "extractedIntelligence", "totalMessagesExchanged", "engagementDurationSeconds", "engagementMetrics", "agentNotes"]}
 - [PASS] route::callback_triggered_on_scam_turn_3_plus
   Details: {"status_code": 200, "callback_calls": 1, "scamDetected": true}
 - [PASS] route::callback_not_triggered_for_legit
@@ -52,4 +52,4 @@
 - [PASS] route::malformed_json_fallback_response
   Details: {"status_code": 200, "keys": ["status", "reply", "sessionId", "scamDetected", "scamType", "confidenceLevel", "extractedIntelligence", "totalMessagesExchanged", "engagementDurationSeconds", "engagementMetrics", "agentNotes"]}
 - [FAIL] live_endpoint::health_reachable
-  Details: {"error": "ConnectionError: HTTPSConnectionPool(host='guvi-honeypot-07tp.onrender.com', port=443): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x00000147EFCB0050>: Failed to establish a new connection: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions'))"}
+  Details: {"error": "ConnectionError: HTTPSConnectionPool(host='guvi-honeypot-07tp.onrender.com', port=443): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x000001DCAFB00050>: Failed to establish a new connection: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions'))"}

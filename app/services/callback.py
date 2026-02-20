@@ -104,7 +104,7 @@ class CallbackService:
                 return True
                 
             except httpx.TimeoutException:
-                logger.error(f"[{session_id}] Callback TIMEOUT after 15 seconds")
+                logger.error(f"[{session_id}] Callback TIMEOUT after 8 seconds")
                 return False
             except httpx.HTTPStatusError as e:
                 logger.error(f"[{session_id}] Callback HTTP ERROR: {e.response.status_code} - {e.response.text[:200]}")

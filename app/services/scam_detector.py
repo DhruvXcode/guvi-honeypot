@@ -99,11 +99,14 @@ class ScamDetectorService:
         suspicious_urls = []
         
         for url in urls:
+            # Strip port number if present (e.g., amazon.in:443 -> amazon.in)
+            hostname = url.split(":")[0] if ":" in url else url
+            
             is_legit = False
             for domain in self.legitimate_domains:
-                # Proper suffix match: url must END with domain or .domain
+                # Proper suffix match: hostname must END with domain or .domain
                 # Prevents spoofing like amazon.in.verify-now.ru
-                if url == domain or url.endswith("." + domain):
+                if hostname == domain or hostname.endswith("." + domain):
                     is_legit = True
                     legitimate_urls.append(url)
                     break
@@ -164,15 +167,10 @@ class ScamDetectorService:
         if history is None:
             history = []
         
-        # ============== LAYER 1: URL CHECK ==============
+        # ============== LAYER 1: URL CHECK (advisory, does NOT short-circuit) ==============
         urls_legit, url_list = self._check_url_legitimacy(message)
-        if urls_legit and url_list:
-            return ScamAnalysis(
-                is_scam=False,
-                confidence=0.85,
-                detected_patterns=["legitimate_domain"],
-                reasoning=f"Message contains URLs from trusted domains: {', '.join(url_list[:3])}"
-            )
+        # Note: Even if URLs are legit, we still check for scam patterns.
+        # Scammers can include real bank URLs alongside threatening language.
         
         # ============== LAYER 2: STRONG SCAM INDICATORS (check BEFORE automated) ==============
         has_scam_signals, scam_patterns = self._has_strong_scam_indicators(message)
