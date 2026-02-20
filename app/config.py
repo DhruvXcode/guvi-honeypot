@@ -19,7 +19,7 @@ class Settings:
     
     # Cerebras Settings (Round-robin LLM partner)
     CEREBRAS_API_KEY: str = os.getenv("CEREBRAS_API_KEY", "")
-    CEREBRAS_MODEL: str = "llama3.1-8b"  # 30 RPM, 14.4K RPD (zai-glm-4.7 only 10 RPM — unusable)
+    CEREBRAS_MODEL: str = "qwen-3-235b-a22b-instruct-2507"  # 30 RPM, 60K TPM — same limits as llama3.1-8b but 235B params + native Hinglish
     CEREBRAS_BASE_URL: str = "https://api.cerebras.ai/v1"
     
     # App Settings

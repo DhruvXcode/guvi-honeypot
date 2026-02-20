@@ -32,7 +32,7 @@ class AgentService:
         
         # Cerebras client (OpenAI-compatible API)
         self.cerebras_client = None
-        self.cerebras_model = "llama3.1-8b"  # 30 RPM, 14.4K RPD (zai-glm-4.7 only 10 RPM)
+        self.cerebras_model = "qwen-3-235b-a22b-instruct-2507"  # 235B MoE, native Hinglish, same 30 RPM as llama3.1-8b
         if settings.CEREBRAS_API_KEY:
             self.cerebras_client = AsyncOpenAI(
                 api_key=settings.CEREBRAS_API_KEY,
