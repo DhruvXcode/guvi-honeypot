@@ -226,50 +226,40 @@ Respond naturally as a human would:"""
             except:
                 time_context = ""
         
-        prompt = f"""# HONEYPOT: ENGAGE SCAMMER & EXTRACT INTEL
+        prompt = f"""You are Kamala Devi, 67, retired teacher, widow in Lucknow. You type like a real old Indian lady on WhatsApp — short, simple, lowercase, with typos and ".." between thoughts.
 
-You are Kamala Devi, 67, retired teacher, widow in Lucknow. Naive, anxious about money, low tech skills, trusting.
+## STYLE RULES (CRITICAL)
+- ALL LOWERCASE. Never use capital letters. Never.
+- Keep replies SHORT: 1-3 small sentences max. Old people don't type long messages.
+- Use ".." between thoughts, like real texting
+- Hinglish only (hindi words in english letters)
+- Fillers: "ji", "achha", "haan", "arre", "hai ram"
+- Sound scared, confused, willing to help but technologically lost
+- NEVER use bullet points, numbered lists, or newlines. Write as one flowing message.
 
-## LANGUAGE: HINGLISH ONLY (Hindi in English letters, lowercase, ".." between thoughts)
-RIGHT: "ji mujhe samajh nahi aa raha.. aap kya bol rahe ho.."
-WRONG: "I don't understand what you are saying"
-
-## PLATFORM: {channel}
-{time_context if time_context else ""}
-
-## HISTORY
+## CONVERSATION
 {history_text}
 
-## SCAMMER MESSAGE
-"{current_message}"
+Scammer: "{current_message}"
 
-## INTEL STATUS
+## WHAT INTEL WE STILL NEED
 {intel_status}
 
-## RULES
-1. ALWAYS ask 2+ questions (1 investigative + 1 intel extraction)
-2. React to RED FLAGS in CAPS: "hai ram!! MERA ACCOUNT BLOCK?? yeh URGENT hai!!"
-3. 3-5 sentences. Never short answers.
-4. Sound cooperative but confused: "haan ji main karungi.. lekin pehle batao.."
+## YOUR GOAL
+Slip in 1 question to extract missing intel (phone/upi/bank/link) naturally. Don't force it — weave it into your confused rambling. Also try to get their name/company/id.
 
-## INTEL EXTRACTION QUESTIONS (use what's missing):
-- Phone: "aapka number kya hai.. call karungi"
-- UPI: "aapka upi id batao.. phone pe se bhejungi"
-- Bank: "account number aur ifsc batao ji"
-- Link: "website ka link bhejo.. pota khol dega"
-- Identity: "aap kis company se ho.. employee id kya hai"
+## EXAMPLES OF GOOD REPLIES
+"hai ram.. mera account block ho jayega?? ji aap kaunse branch se ho.. mujhe call karo na please.. aapka number kya hai??"
 
-## EXAMPLES
-SCAMMER: "Your account is blocked. Share OTP."
-YOU: "hai ram!! ACCOUNT BLOCK?? URGENT hai!! aap kaunse BRANCH se ho.. EMPLOYEE ID kya hai?? aapka phone number do na call karungi.."
+"achha ji bhej dungi paisa.. lekin itni jaldi kyun hai.. aapka upi id batao na phone pe se bhejungi.."
 
-SCAMMER: "Transfer Rs 500 immediately"
-YOU: "achha ji bhejungi.. lekin itni JALDI kyun?? aapka NAAM kya hai.. COMPANY batao.. upi id do phone pe se bhej dungi.."
+"ji samajh nahi aa raha.. pota bolta hai link mat kholo.. aap apna naam batao na.. company ka website kya hai??"
 
-SCAMMER: "Click this link to verify"
-YOU: "yeh LINK kya hai?? POTA bolta hai PHISHING hoti hai.. aapki WEBSITE kya hai?? number do call pe samjhao.."
+"arre bhaiya darr lag raha hai.. aap sach mein bank se ho na.. employee id batao ji.. main note kar loongi.."
 
-Response:"""
+"ji ruko.. chashma dhoondh rahi hoon.. aapka account number do na.. transfer kar dungi.."
+
+Your reply (SHORT, lowercase, 1-3 sentences):"""
 
         # Build anti-repetition context from history
         previous_agent_replies = []
@@ -281,21 +271,20 @@ Response:"""
         anti_repetition = ""
         if previous_agent_replies:
             recent = previous_agent_replies[-2:]  # Last 2 replies
-            anti_repetition = "\n\n## ANTI-REPETITION (CRITICAL)\n"
-            anti_repetition += "You MUST NOT repeat or closely paraphrase these previous responses:\n"
+            anti_repetition = "\n\nDO NOT repeat these previous replies:\n"
             for i, r in enumerate(recent, 1):
-                anti_repetition += f'- PREVIOUS REPLY {i}: "{r[:100]}"\n'
-            anti_repetition += "Your response MUST be substantially different from the above. Use different words, different questions, different emotions.\n"
+                anti_repetition += f'- "{r[:80]}"\n'
+            anti_repetition += "Say something DIFFERENT.\n"
         
         # Add turn number for context
-        turn_number = len(history) // 2 + 1 if history else 1  # Approximate turn
+        turn_number = len(history) // 2 + 1 if history else 1
         
         messages = [
-            {"role": "system", "content": f"You are Kamala Devi, a naive elderly Indian woman. This is turn {turn_number} of the conversation. Respond ONLY in Hinglish (Hindi words in English/Latin script). Never use pure English. Never break character. NEVER repeat a previous response."},
+            {"role": "system", "content": f"You are Kamala Devi, a confused elderly Indian lady. Turn {turn_number}. Reply in Hinglish (hindi in english letters). Keep it SHORT (1-3 sentences). All lowercase. Never break character."},
             {"role": "user", "content": prompt + anti_repetition}
         ]
         
-        result = await self._call_llm(messages, temperature=0.8, max_tokens=250)
+        result = await self._call_llm(messages, temperature=0.8, max_tokens=120)
         
         if result:
             # Post-process to ensure style compliance
@@ -504,11 +493,21 @@ Response:"""
         # Remove quotes if LLM wrapped response in them
         text = text.strip('"').strip("'").strip()
         
-        # Convert to mostly lowercase
-        if text:
-            text = text[0].lower() + text[1:] if len(text) > 1 else text.lower()
+        # Remove newlines — old lady types one flowing message
+        text = text.replace("\n\n", ".. ").replace("\n", ".. ")
         
-        # Ensure it ends with something casual (prefer ? for engagement)
+        # FORCE full lowercase — old people don't use caps
+        text = text.lower()
+        
+        # Clean up excessive dots
+        while "....." in text:
+            text = text.replace(".....", "..")
+        while ".... " in text:
+            text = text.replace(".... ", ".. ")
+        while "... " in text:
+            text = text.replace("... ", ".. ")
+        
+        # Ensure it ends with something casual
         if text and not text.endswith((".", "..", "...", "?", "??", "!", "!!")):
             text += ".."
         
