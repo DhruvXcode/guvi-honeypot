@@ -15,7 +15,7 @@ class Settings:
 
     # Groq Settings (Primary LLM)
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-    GROQ_MODEL: str = "moonshotai/kimi-k2-instruct-0905"  # 60 RPM, 300K TPD (best limits on Groq free tier)
+    GROQ_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"  # 30K TPM! (kimi-k2 only 10K TPM = exhausts after 2 turns)
     
     # Cerebras Settings (Round-robin LLM partner)
     CEREBRAS_API_KEY: str = os.getenv("CEREBRAS_API_KEY", "")
