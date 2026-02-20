@@ -15,11 +15,11 @@ class Settings:
 
     # Groq Settings (Primary LLM)
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_MODEL: str = "moonshotai/kimi-k2-instruct-0905"  # 60 RPM, 300K TPD (best limits on Groq free tier)
     
-    # Cerebras Settings (Fallback LLM - for when Groq rate limits)
+    # Cerebras Settings (Round-robin LLM partner)
     CEREBRAS_API_KEY: str = os.getenv("CEREBRAS_API_KEY", "")
-    CEREBRAS_MODEL: str = "llama-3.3-70b"  # Using production model, NOT reasoning model (zai-glm-4.7)
+    CEREBRAS_MODEL: str = "llama3.1-8b"  # 30 RPM, 14.4K RPD (zai-glm-4.7 only 10 RPM — unusable)
     CEREBRAS_BASE_URL: str = "https://api.cerebras.ai/v1"
     
     # App Settings

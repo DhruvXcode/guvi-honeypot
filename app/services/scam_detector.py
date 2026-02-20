@@ -31,7 +31,7 @@ class ScamDetectorService:
         
         # Fallback: Cerebras (same Llama 3.3 70B model)
         self.cerebras_client = None
-        self.cerebras_model = "llama-3.3-70b"  # Production model, not reasoning model
+        self.cerebras_model = "llama3.1-8b"  # 30 RPM, 14.4K RPD (zai-glm-4.7 only 10 RPM)
         if settings.CEREBRAS_API_KEY:
             self.cerebras_client = AsyncOpenAI(
                 api_key=settings.CEREBRAS_API_KEY,
@@ -317,7 +317,7 @@ Respond in JSON:
         except asyncio.TimeoutError:
             logger.warning("Groq TIMEOUT (>8s) for scam detection")
         except Exception as e:
-            logger.warning(f"Groq scam detection error: {type(e).__name__}")
+            logger.warning(f"Groq scam detection error: {type(e).__name__}: {str(e)[:100]}")
         return None
     
     async def _try_cerebras_detection(self, messages: list) -> str:
@@ -344,7 +344,7 @@ Respond in JSON:
         except asyncio.TimeoutError:
             logger.warning("Cerebras TIMEOUT (>10s) for scam detection")
         except Exception as e:
-            logger.warning(f"Cerebras scam detection error: {type(e).__name__}")
+            logger.warning(f"Cerebras scam detection error: {type(e).__name__}: {str(e)[:100]}")
         return None
 
     async def analyze_quick(self, message: str) -> ScamAnalysis:

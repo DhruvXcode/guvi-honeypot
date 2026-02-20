@@ -28,11 +28,11 @@ class AgentService:
     def __init__(self):
         # Groq client - DISABLE RETRIES to fail fast
         self.groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY, max_retries=0)
-        self.groq_model = settings.GROQ_MODEL
+        self.groq_model = settings.GROQ_MODEL  # moonshotai/kimi-k2-instruct-0905: 60 RPM, 300K TPD
         
         # Cerebras client (OpenAI-compatible API)
         self.cerebras_client = None
-        self.cerebras_model = settings.CEREBRAS_MODEL
+        self.cerebras_model = "llama3.1-8b"  # 30 RPM, 14.4K RPD (zai-glm-4.7 only 10 RPM)
         if settings.CEREBRAS_API_KEY:
             self.cerebras_client = AsyncOpenAI(
                 api_key=settings.CEREBRAS_API_KEY,
@@ -98,8 +98,10 @@ class AgentService:
             ]
         
         for name, try_fn in providers:
+            logger.debug(f"Trying {name} for response generation...")
             result = await try_fn(messages, temperature, max_tokens)
             if result:
+                logger.info(f"LLM response from {name} ({len(result)} chars)")
                 return result
         
         # Both failed - return None to trigger template fallback response
@@ -124,7 +126,7 @@ class AgentService:
         except asyncio.TimeoutError:
             logger.warning("Groq TIMEOUT (>8s)")
         except Exception as e:
-            logger.warning(f"Groq error: {type(e).__name__}")
+            logger.warning(f"Groq error: {type(e).__name__}: {str(e)[:100]}")
         return None
     
     async def _try_cerebras(self, messages: list, temperature: float, max_tokens: int) -> Optional[str]:
@@ -147,7 +149,7 @@ class AgentService:
         except asyncio.TimeoutError:
             logger.warning("Cerebras TIMEOUT (>10s)")
         except Exception as e:
-            logger.warning(f"Cerebras error: {type(e).__name__}")
+            logger.warning(f"Cerebras error: {type(e).__name__}: {str(e)[:100]}")
         return None
     
     async def _generate_normal_response(
