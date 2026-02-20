@@ -1,5 +1,5 @@
 {
-  "generated_at_epoch_ms": 1771567825508,
+  "generated_at_epoch_ms": 1771569161819,
   "summary": {
     "total": 20,
     "passed": 19,
@@ -273,7 +273,7 @@
       "passed": true,
       "details": {
         "status_code": 200,
-        "elapsed_ms": 43.18,
+        "elapsed_ms": 28.16,
         "keys": [
           "status",
           "reply",
@@ -354,7 +354,7 @@
       "name": "health_reachable",
       "passed": false,
       "details": {
-        "error": "ConnectionError: HTTPSConnectionPool(host='guvi-honeypot-07tp.onrender.com', port=443): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x000001DCAFB00050>: Failed to establish a new connection: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions'))"
+        "error": "ConnectionError: HTTPSConnectionPool(host='guvi-honeypot-07tp.onrender.com', port=443): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x000001B938D54050>: Failed to establish a new connection: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions'))"
       }
     }
   ]

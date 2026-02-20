@@ -26,11 +26,11 @@ class AgentService:
     """
 
     def __init__(self):
-        # Primary: Groq - DISABLE RETRIES to fail fast and switch to Cerebras
+        # Groq client - DISABLE RETRIES to fail fast
         self.groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY, max_retries=0)
         self.groq_model = settings.GROQ_MODEL
         
-        # Fallback: Cerebras (OpenAI-compatible API)
+        # Cerebras client (OpenAI-compatible API)
         self.cerebras_client = None
         self.cerebras_model = settings.CEREBRAS_MODEL
         if settings.CEREBRAS_API_KEY:
@@ -38,10 +38,10 @@ class AgentService:
                 api_key=settings.CEREBRAS_API_KEY,
                 base_url=settings.CEREBRAS_BASE_URL
             )
-            logger.info("Cerebras fallback configured!")
+            logger.info("Cerebras configured for round-robin!")
         
-        # Track which provider to use (for rate limit cooldown)
-        self.use_cerebras = False
+        # Round-robin counter: distributes calls evenly across providers
+        self._call_counter = 0
     
     async def generate_response(
         self, 
@@ -77,58 +77,77 @@ class AgentService:
     
     async def _call_llm(self, messages: list, temperature: float = 0.7, max_tokens: int = 150) -> str:
         """
-        Call LLM with aggressive timeouts and automatic fallback.
-        Groq: 8s timeout -> Cerebras: 10s timeout -> None (triggers template fallback)
-        """
-        # Try Groq first (unless we know it's rate limited)
-        if not self.use_cerebras:
-            try:
-                response = await asyncio.wait_for(
-                    self.groq_client.chat.completions.create(
-                        messages=messages,
-                        model=self.groq_model,
-                        temperature=temperature,
-                        max_tokens=max_tokens
-                    ),
-                    timeout=8.0  # AGGRESSIVE: 8 seconds max for Groq
-                )
-                content = response.choices[0].message.content
-                if content:
-                    return content.strip()
-            except asyncio.TimeoutError:
-                logger.warning("Groq TIMEOUT (>8s), falling back to Cerebras")
-            except Exception as e:
-                error_str = str(e).lower()
-                if "rate_limit" in error_str or "429" in error_str or "too many requests" in error_str:
-                    logger.warning(f"Groq rate limited, switching to Cerebras: {e}")
-                    self.use_cerebras = True
-                else:
-                    logger.error(f"Groq error: {e}")
+        Call LLM with round-robin provider selection and automatic failover.
         
-        # Fallback to Cerebras
-        if self.cerebras_client:
-            try:
-                logger.info("Using Cerebras fallback (llama-3.3-70b)...")
-                response = await asyncio.wait_for(
-                    self.cerebras_client.chat.completions.create(
-                        messages=messages,
-                        model="llama-3.3-70b",
-                        temperature=temperature,
-                        max_tokens=max_tokens
-                    ),
-                    timeout=10.0  # AGGRESSIVE: 10 seconds max for Cerebras
-                )
-                content = response.choices[0].message.content
-                if content:
-                    return content.strip()
-                else:
-                    logger.warning("Cerebras returned None content")
-            except asyncio.TimeoutError:
-                logger.warning("Cerebras TIMEOUT (>10s), using template fallback")
-            except Exception as e:
-                logger.error(f"Cerebras also failed: {e}")
+        Strategy: Alternate between Groq and Cerebras on every call to
+        distribute rate-limit pressure evenly. If the selected provider
+        fails, immediately try the other — no wasted timeout.
+        """
+        self._call_counter += 1
+        
+        # Determine provider order based on round-robin counter
+        if self.cerebras_client and self._call_counter % 2 == 0:
+            providers = [
+                ("Cerebras", self._try_cerebras),
+                ("Groq", self._try_groq),
+            ]
+        else:
+            providers = [
+                ("Groq", self._try_groq),
+                ("Cerebras", self._try_cerebras),
+            ]
+        
+        for name, try_fn in providers:
+            result = await try_fn(messages, temperature, max_tokens)
+            if result:
+                return result
         
         # Both failed - return None to trigger template fallback response
+        logger.warning("All LLM providers failed - using template fallback")
+        return None
+    
+    async def _try_groq(self, messages: list, temperature: float, max_tokens: int) -> Optional[str]:
+        """Attempt a Groq API call with 8s timeout."""
+        try:
+            response = await asyncio.wait_for(
+                self.groq_client.chat.completions.create(
+                    messages=messages,
+                    model=self.groq_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                ),
+                timeout=8.0
+            )
+            content = response.choices[0].message.content
+            if content:
+                return content.strip()
+        except asyncio.TimeoutError:
+            logger.warning("Groq TIMEOUT (>8s)")
+        except Exception as e:
+            logger.warning(f"Groq error: {type(e).__name__}")
+        return None
+    
+    async def _try_cerebras(self, messages: list, temperature: float, max_tokens: int) -> Optional[str]:
+        """Attempt a Cerebras API call with 10s timeout."""
+        if not self.cerebras_client:
+            return None
+        try:
+            response = await asyncio.wait_for(
+                self.cerebras_client.chat.completions.create(
+                    messages=messages,
+                    model=self.cerebras_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                ),
+                timeout=10.0
+            )
+            content = response.choices[0].message.content
+            if content:
+                return content.strip()
+        except asyncio.TimeoutError:
+            logger.warning("Cerebras TIMEOUT (>10s)")
+        except Exception as e:
+            logger.warning(f"Cerebras error: {type(e).__name__}")
         return None
     
     async def _generate_normal_response(

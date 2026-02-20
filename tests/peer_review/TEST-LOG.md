@@ -40,7 +40,7 @@
 - [PASS] scam_detector::analyze_quick_flags_obvious_scam
   Details: {"output": {"is_scam": true, "confidence": 0.85, "detected_patterns": ["share (your )?(otp|pin|password)"], "reasoning": "Quick scan: scam patterns detected"}}
 - [PASS] route::spec_shape_on_valid_request
-  Details: {"status_code": 200, "elapsed_ms": 43.18, "keys": ["status", "reply", "sessionId", "scamDetected", "scamType", "confidenceLevel", "extractedIntelligence", "totalMessagesExchanged", "engagementDurationSeconds", "engagementMetrics", "agentNotes"]}
+  Details: {"status_code": 200, "elapsed_ms": 28.16, "keys": ["status", "reply", "sessionId", "scamDetected", "scamType", "confidenceLevel", "extractedIntelligence", "totalMessagesExchanged", "engagementDurationSeconds", "engagementMetrics", "agentNotes"]}
 - [PASS] route::callback_triggered_on_scam_turn_3_plus
   Details: {"status_code": 200, "callback_calls": 1, "scamDetected": true}
 - [PASS] route::callback_not_triggered_for_legit
@@ -52,4 +52,4 @@
 - [PASS] route::malformed_json_fallback_response
   Details: {"status_code": 200, "keys": ["status", "reply", "sessionId", "scamDetected", "scamType", "confidenceLevel", "extractedIntelligence", "totalMessagesExchanged", "engagementDurationSeconds", "engagementMetrics", "agentNotes"]}
 - [FAIL] live_endpoint::health_reachable
-  Details: {"error": "ConnectionError: HTTPSConnectionPool(host='guvi-honeypot-07tp.onrender.com', port=443): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x000001DCAFB00050>: Failed to establish a new connection: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions'))"}
+  Details: {"error": "ConnectionError: HTTPSConnectionPool(host='guvi-honeypot-07tp.onrender.com', port=443): Max retries exceeded with url: /health (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x000001B938D54050>: Failed to establish a new connection: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions'))"}

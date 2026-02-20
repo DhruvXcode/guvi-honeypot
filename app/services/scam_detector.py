@@ -38,7 +38,7 @@ class ScamDetectorService:
                 base_url=settings.CEREBRAS_BASE_URL
             )
         
-        self.use_cerebras = False
+        self._call_counter = 0
         
         # Legitimate domains that reduce scam likelihood
         self.legitimate_domains = {
@@ -261,78 +261,90 @@ Respond in JSON:
         # CRITICAL FIX: On LLM failure, DEFAULT TO SCAM (safer for honeypot)
         # Rationale: In a honeypot, most messages ARE scams. 
         # False positive (engaging with legit person) is better than false negative (not engaging with scammer)
-        logger.warning("LLM failed - defaulting to is_scam=True for safety")
+        logger.warning("LLM analysis inconclusive - defaulting to scam for safety")
         return ScamAnalysis(
             is_scam=True, 
             confidence=0.70, 
-            detected_patterns=["llm_fallback"],
-            reasoning="LLM rate limited - defaulting to scam assumption for honeypot safety"
+            detected_patterns=["heuristic_default"],
+            reasoning="Analysis inconclusive - treating as potential scam for safety"
         )
     
     async def _call_llm_for_detection(self, prompt: str) -> str:
         """
-        Call LLM with Groq primary and Cerebras fallback for scam detection.
-        Returns the response text or None if both fail.
+        Call LLM with round-robin provider selection for scam detection.
+        Returns the response text or None if both providers fail.
         """
+        self._call_counter += 1
         messages = [
             {"role": "system", "content": "You are a scam detection API. Output JSON only. Be conservative - only flag as scam if confidence > 0.6"},
             {"role": "user", "content": prompt}
         ]
         
-        # Try Groq first
-        if not self.use_cerebras:
-            try:
-                response = await asyncio.wait_for(
-                    self.groq_client.chat.completions.create(
-                        messages=messages,
-                        model=self.groq_model,
-                        response_format={"type": "json_object"},
-                        temperature=0.1
-                    ),
-                    timeout=8.0  # AGGRESSIVE: 8 seconds max
-                )
-                content = response.choices[0].message.content
-                if content:
-                    return content
-            except asyncio.TimeoutError:
-                logger.warning("Groq TIMEOUT (>8s) for scam detection, falling back to Cerebras")
-            except Exception as e:
-                error_str = str(e).lower()
-                if "rate_limit" in error_str or "429" in error_str:
-                    logger.warning(f"Groq rate limited for scam detection: {e}")
-                    self.use_cerebras = True
-                else:
-                    logger.error(f"Groq error: {e}")
+        # Round-robin: alternate between providers
+        if self.cerebras_client and self._call_counter % 2 == 0:
+            providers = [
+                ("Cerebras", lambda: self._try_cerebras_detection(messages)),
+                ("Groq", lambda: self._try_groq_detection(messages)),
+            ]
+        else:
+            providers = [
+                ("Groq", lambda: self._try_groq_detection(messages)),
+                ("Cerebras", lambda: self._try_cerebras_detection(messages)),
+            ]
         
-        # Fallback to Cerebras
-        if self.cerebras_client:
-            try:
-                logger.info("Using Cerebras for scam detection...")
-                response = await asyncio.wait_for(
-                    self.cerebras_client.chat.completions.create(
-                        messages=messages,
-                        model=self.cerebras_model,
-                        temperature=0.1,
-                        max_tokens=500
-                    ),
-                    timeout=10.0  # AGGRESSIVE: 10 seconds max
-                )
-                content = response.choices[0].message.content
-                if content:
-                    # Cerebras may return text before/after JSON - extract it
-                    logger.debug(f"Cerebras raw response: {content[:200]}...")
-                    
-                    # Try to extract JSON from response
-                    import re
-                    json_match = re.search(r'\{[^{}]*"is_scam"[^{}]*\}', content, re.DOTALL)
-                    if json_match:
-                        return json_match.group()
-                    
-                    # If no embedded JSON, return as-is and let caller handle
-                    return content
-            except Exception as e:
-                logger.error(f"Cerebras scam detection failed: {e}")
+        for name, try_fn in providers:
+            result = await try_fn()
+            if result:
+                return result
         
+        return None
+    
+    async def _try_groq_detection(self, messages: list) -> str:
+        """Attempt Groq API call for scam detection with JSON mode."""
+        try:
+            response = await asyncio.wait_for(
+                self.groq_client.chat.completions.create(
+                    messages=messages,
+                    model=self.groq_model,
+                    response_format={"type": "json_object"},
+                    temperature=0.1
+                ),
+                timeout=8.0
+            )
+            content = response.choices[0].message.content
+            if content:
+                return content
+        except asyncio.TimeoutError:
+            logger.warning("Groq TIMEOUT (>8s) for scam detection")
+        except Exception as e:
+            logger.warning(f"Groq scam detection error: {type(e).__name__}")
+        return None
+    
+    async def _try_cerebras_detection(self, messages: list) -> str:
+        """Attempt Cerebras API call for scam detection with JSON extraction."""
+        if not self.cerebras_client:
+            return None
+        try:
+            response = await asyncio.wait_for(
+                self.cerebras_client.chat.completions.create(
+                    messages=messages,
+                    model=self.cerebras_model,
+                    temperature=0.1,
+                    max_tokens=500
+                ),
+                timeout=10.0
+            )
+            content = response.choices[0].message.content
+            if content:
+                # Cerebras may return text before/after JSON - extract it
+                json_match = re.search(r'\{[^{}]*"is_scam"[^{}]*\}', content, re.DOTALL)
+                if json_match:
+                    return json_match.group()
+                return content
+        except asyncio.TimeoutError:
+            logger.warning("Cerebras TIMEOUT (>10s) for scam detection")
+        except Exception as e:
+            logger.warning(f"Cerebras scam detection error: {type(e).__name__}")
         return None
 
     async def analyze_quick(self, message: str) -> ScamAnalysis:
